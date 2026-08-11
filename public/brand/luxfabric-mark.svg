@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Open square frame -->
+  <path d="M14 14h28M14 14v28" stroke="#E11D2E" stroke-width="4" stroke-linecap="square"/>
+  <path d="M50 18v28H22" stroke="#E11D2E" stroke-width="4" stroke-linecap="square"/>
+  <!-- Cross-stitch X -->
+  <path d="M24 24l16 16M40 24L24 40" stroke="#E11D2E" stroke-width="3.2" stroke-linecap="round"/>
+  <!-- Stitch dots -->
+  <circle cx="24" cy="24" r="3.2" fill="#E11D2E"/>
+  <circle cx="40" cy="24" r="3.2" fill="#E11D2E"/>
+  <circle cx="24" cy="40" r="3.2" fill="#E11D2E"/>
+  <circle cx="40" cy="40" r="3.2" fill="#E11D2E"/>
+  <!-- Needle -->
+  <path d="M32 16v32" stroke="#E11D2E" stroke-width="2.4" stroke-linecap="round"/>
+  <ellipse cx="32" cy="14.5" rx="2.2" ry="3.2" stroke="#E11D2E" stroke-width="2" fill="none"/>
+</svg>

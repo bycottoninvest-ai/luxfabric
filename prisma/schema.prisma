@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String
+  fabric      String
+  care        String
+  gender      String           @default("WOMEN")
+  price       Int
+  oldPrice    Int?
+  rating      Float            @default(4.8)
+  soldCount   Int              @default(0)
+  status      String           @default("ACTIVE")
+  featured    Boolean          @default(false)
+  categoryId  String
+  category    Category         @relation(fields: [categoryId], references: [id])
+  images      ProductImage[]
+  variants    ProductVariant[]
+  orderItems  OrderItem[]
+  reels       InstagramReel[]
+  stories     InstagramStory[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  url       String
+  alt       String?
+  color     String?
+  sortOrder Int     @default(0)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ProductVariant {
+  id         String           @id @default(cuid())
+  sku        String           @unique
+  color      String
+  colorHex   String
+  size       String
+  barcode    String           @unique
+  productId  String
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stocks     WarehouseStock[]
+  orderItems OrderItem[]
+  scans      ScanEvent[]
+}
+
+model Region {
+  id         String      @id @default(cuid())
+  code       String      @unique
+  name       String
+  nameUz     String
+  sortOrder  Int         @default(0)
+  warehouses Warehouse[]
+}
+
+model Warehouse {
+  id        String           @id @default(cuid())
+  name      String
+  city      String
+  address   String
+  phone     String?
+  lat       Float
+  lng       Float
+  isCentral Boolean          @default(false)
+  isActive  Boolean          @default(true)
+  regionId  String?
+  region    Region?          @relation(fields: [regionId], references: [id])
+  stocks    WarehouseStock[]
+  orders    Order[]
+  scans     ScanEvent[]
+}
+
+model WarehouseStock {
+  id          String         @id @default(cuid())
+  quantity    Int            @default(0)
+  warehouseId String
+  warehouse   Warehouse      @relation(fields: [warehouseId], references: [id])
+  variantId   String
+  variant     ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, variantId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String?
+  phone     String   @unique
+  city      String?
+  address   String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+}
+
+model CourierPartner {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  name             String
+  nameUz           String
+  phone            String?
+  website          String?
+  apiBaseUrl       String?
+  isActive         Boolean  @default(true)
+  supportsCod      Boolean  @default(true)
+  coverage         String   @default("UZ")
+  sortOrder        Int      @default(0)
+  notes            String?
+  assignedOrders   Order[]  @relation("AssignedCourier")
+  preferredOrders  Order[]  @relation("PreferredCourier")
+  createdAt        DateTime @default(now())
+}
+
+model Order {
+  id                String          @id @default(cuid())
+  orderNumber       String          @unique
+  status            String          @default("NEW")
+  paymentMethod     String
+  paymentStatus     String          @default("PENDING")
+  subtotal          Int
+  deliveryFee       Int             @default(0)
+  total             Int
+  customerName      String
+  customerPhone     String
+  city              String
+  address           String
+  note              String?
+  source            String          @default("STORE")
+  deliveryType      String          @default("SHOP_DELIVERY")
+  notifyChannel     String          @default("SMS")
+  telegramUsername  String?
+  preferredCourierId String?
+  preferredCourier  CourierPartner? @relation("PreferredCourier", fields: [preferredCourierId], references: [id])
+  courierCode       String?
+  courierTracking   String?
+  courierLabel      String?
+  handedToCourierAt DateTime?
+  stockDeducted     Boolean         @default(true)
+  cardSavedAt       DateTime?
+  customerId        String?
+  customer          Customer?       @relation(fields: [customerId], references: [id])
+  warehouseId       String?
+  warehouse         Warehouse?      @relation(fields: [warehouseId], references: [id])
+  courierId         String?
+  courier           CourierPartner? @relation("AssignedCourier", fields: [courierId], references: [id])
+  items             OrderItem[]
+  events            TrackingEvent[]
+  scans             ScanEvent[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model OrderItem {
+  id        String         @id @default(cuid())
+  quantity  Int
+  pickedQty Int            @default(0)
+  price     Int
+  orderId   String
+  order     Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product        @relation(fields: [productId], references: [id])
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model TrackingEvent {
+  id        String   @id @default(cuid())
+  status    String
+  title     String
+  note      String?
+  lat       Float?
+  lng       Float?
+  createdAt DateTime @default(now())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("ADMIN")
+  createdAt    DateTime @default(now())
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model InstagramMusic {
+  id          String          @id @default(cuid())
+  title       String
+  artist      String          @default("LUXFABRIC")
+  fileUrl     String
+  durationSec Int?
+  createdAt   DateTime        @default(now())
+  reels       InstagramReel[]
+}
+
+model InstagramReel {
+  id             String          @id @default(cuid())
+  title          String
+  caption        String          @default("")
+  videoUrl       String
+  coverUrl       String?
+  buyButtonLabel String          @default("Sotib olish")
+  showBuyButton  Boolean         @default(true)
+  isPublished    Boolean         @default(true)
+  sortOrder      Int             @default(0)
+  views          Int             @default(0)
+  /// Video fayliga musiqa biriktirilgan (ffmpeg mux) — alohida audio kerak emas
+  audioEmbedded  Boolean         @default(false)
+  metaMediaId    String?
+  metaPublishedAt DateTime?
+  musicId        String?
+  music          InstagramMusic? @relation(fields: [musicId], references: [id])
+  productId      String?
+  product        Product?        @relation(fields: [productId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+/// Instagram Story (hikoya) — rasm/video + mahsulot havolasi
+model InstagramStory {
+  id         String    @id @default(cuid())
+  title      String
+  caption    String    @default("")
+  mediaUrl   String
+  mediaType  String    @default("image") // image | video
+  linkLabel  String    @default("Sotib olish")
+  isPublished Boolean  @default(true)
+  sortOrder  Int       @default(0)
+  productId  String?
+  product    Product?  @relation(fields: [productId], references: [id])
+  metaMediaId String?
+  metaPublishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+// QR skaner jurnali — kirim/chiqim/buyurtma yigish
+model ScanEvent {
+  id          String           @id @default(cuid())
+  action      String
+  rawCode     String
+  quantity    Int              @default(1)
+  note        String?
+  barcode     String?
+  orderId     String?
+  order       Order?           @relation(fields: [orderId], references: [id])
+  variantId   String?
+  variant     ProductVariant?  @relation(fields: [variantId], references: [id])
+  warehouseId String?
+  warehouse   Warehouse?       @relation(fields: [warehouseId], references: [id])
+  createdAt   DateTime         @default(now())
+}

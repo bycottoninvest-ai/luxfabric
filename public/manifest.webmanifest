@@ -1,0 +1,24 @@
+{
+  "name": "LUXFABRIC TEXTILE",
+  "short_name": "Luxfabric",
+  "description": "Premium textile — tez buyurtma va tracking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "lang": "uz",
+  "icons": [
+    {
+      "src": "/brand/luxfabric-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/luxfabric-logo-on-dark.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
