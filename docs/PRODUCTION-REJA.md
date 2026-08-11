@@ -26,8 +26,7 @@
 Katalog bo‘shligi sababi: serverlessda SQLite yo‘q.
 1. Neon project + connection string
 2. Vercel `DATABASE_URL`
-3. Redeploy → `prisma migrate deploy` (build ichida)
-4. `npm run db:seed`
+3. Redeploy → `prisma migrate deploy` + bo‘sh bo‘lsa seed (build ichida)
 
 Batafsil: `docs/VERCEL-DEPLOY.md`
 
@@ -59,8 +58,8 @@ Admin → Instagram → Meta/DM:
 - [x] Deploy: https://luxfabric-qhy9.vercel.app (200)
 - [x] Public DNS → Vercel (apex 308 → www)
 - [x] Kod: Prisma **postgresql** + migrate deploy buildda
-- [ ] Neon `DATABASE_URL` Vercelga (foydalanuvchi)
-- [ ] `db:seed` production
+- [x] Neon `DATABASE_URL` Vercelga (migrate Ready)
+- [x] `db:seed` production (buildda avtomatik, mahsulotlar 0 bo‘lsa)
 - [ ] Meta token + webhook prod
 - [ ] Birinchi real Reel joylash
 - [ ] Media Blob/S3 (keyinroq)

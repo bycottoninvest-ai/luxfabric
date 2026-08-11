@@ -8,11 +8,10 @@
 5. Kod: Prisma **Postgres** + migrate/seed skriptlari
 
 ## Keyingi (tartib bilan) — SIZ qilasiz
-1. **Neon** — project + `DATABASE_URL` (URI)
-2. **Vercel Env** — `DATABASE_URL` qo‘ying → **Redeploy**
-3. **Seed** — `npm run db:seed` (shu Neon URL bilan) → katalog to‘ladi
-4. Telefon da domen ochilmasa — DNS kesh / boshqa tarmoq / 24 soat
-5. Meta token → Admin Meta/DM → webhook → Reel joylash
+1. **Neon** — project + `DATABASE_URL` (URI) — allaqachon Ready bo‘lsa keyingi
+2. **Vercel** → Redeploy (seed build ichida avtomatik — lokal seed shart emas)
+3. Telefon da domen ochilmasa — DNS kesh / boshqa tarmoq / 24 soat
+4. Meta token → Admin Meta/DM → webhook → Reel joylash
 
 Batafsil: `docs/VERCEL-DEPLOY.md`
 

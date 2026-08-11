@@ -23,6 +23,14 @@ export const UZ_REGIONS = [
 const sizes = ["S", "M", "L", "XL", "XXL"];
 
 async function main() {
+  const existing = await prisma.product.count();
+  if (existing > 0 && process.env.FORCE_SEED !== "1") {
+    console.log(
+      `[seed] ${existing} mahsulot bor — o‘tkazib yuborildi (qayta seed: FORCE_SEED=1)`
+    );
+    return;
+  }
+
   await prisma.trackingEvent.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();

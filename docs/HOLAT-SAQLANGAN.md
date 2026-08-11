@@ -49,16 +49,15 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - `prisma/schema.prisma` → `provider = "postgresql"`
 - Yangi migrate: `prisma/migrations/20260811173000_init_postgres/`
 - Eski SQLite: `prisma/migrations_sqlite_archive/`
-- `scripts/build.mjs` — Vercelda real `DATABASE_URL` bo‘lsa `prisma migrate deploy`
+- `scripts/build.mjs` — Vercelda real `DATABASE_URL` bo‘lsa `prisma migrate deploy` + bo‘sh katalogda avtomatik seed
 - Skriptlar: `npm run db:deploy`, `npm run db:push`, `npm run db:seed`
 - `.env.example` — Postgres URI namuna
 
 **Foydalanuvchi ZO‘R qiladi (agent login qila olmaydi):**
 1. Neon project + connection string
 2. Vercel → Env → `DATABASE_URL`
-3. Redeploy
-4. `npm run db:seed` (Neon URL bilan)
-5. Telefon DNS hali ochilmasa: kesh tozalash / boshqa Wi‑Fi / 24 soat
+3. Redeploy (seed build ichida — lokal `.env` / `db:seed` shart emas)
+4. Telefon DNS hali ochilmasa: kesh tozalash / boshqa Wi‑Fi / 24 soat
 
 ---
 
@@ -114,7 +113,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 
 ## Hali qilinmagan / keyingi qadamlar
 
-- [ ] **Neon DATABASE_URL** → Vercel env + redeploy + seed (majburiy)
+- [x] **Neon DATABASE_URL** → Vercel env + redeploy (seed buildda avtomatik)
 - [ ] Telefon/ISP da domen ochilishini tasdiqlash
 - [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy)
 - [ ] Meta token + webhook prod
@@ -136,6 +135,6 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 
 ```
 docs/HOLAT-SAQLANGAN.md ni o‘qi va shu yerdan davom et.
-Domen Vercel Valid; keyingi: Neon DATABASE_URL + seed.
+Domen Vercel Valid; Neon Ready; seed buildda avtomatik (mahsulotlar 0 bo‘lsa).
 Kerak: …
 ```

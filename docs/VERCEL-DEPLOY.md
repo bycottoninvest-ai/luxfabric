@@ -18,7 +18,7 @@ Vercel loyiha: `luxfabric-qhy9` — domenlar Valid Configuration.
 
 ---
 
-## Foydalanuvchi ZO‘R qiladigan 5 qadam (Neon)
+## Foydalanuvchi ZO‘R qiladigan 4 qadam (Neon)
 
 ### 1) Neon akkaunt
 1. https://console.neon.tech → Sign up (GitHub/Google)
@@ -37,27 +37,22 @@ Vercel loyiha: `luxfabric-qhy9` — domenlar Valid Configuration.
    - `NEXT_PUBLIC_PROD_DOMAIN` = `https://luxfabricshop.uz`
 3. **Save**
 
-### 4) Redeploy + migrate
-Build skript (`scripts/build.mjs`) Vercelda haqiqiy `DATABASE_URL` bo‘lsa avtomatik `prisma migrate deploy` qiladi.
+### 4) Redeploy + migrate + seed
+Build skript (`scripts/build.mjs`) Vercelda haqiqiy `DATABASE_URL` bo‘lsa avtomatik:
+
+1. `prisma migrate deploy`
+2. `prisma db seed` — **faqat mahsulotlar 0 bo‘lsa** (idempotent; qayta seed: `FORCE_SEED=1`)
+
+**Lokal seed shart emas.** `DATABASE_URL` Vercelda bo‘lsa → Redeploy → Visit.
 
 1. **Deployments** → oxirgi → **Redeploy** (yoki git push)
-2. Build logda `prisma migrate deploy` muvaffaqiyatini tekshiring
+2. Build logda migrate + seed muvaffaqiyatini tekshiring
 
-Qo‘lda (lokal, Neon URL bilan):
+Qo‘lda (ixtiyoriy, lokal Neon URL bilan):
 ```bash
-# .env da DATABASE_URL=neon-uri
 npm run db:deploy
 npm run db:seed
 ```
-
-### 5) Seed (mahsulotlar)
-Birinchi marta katalog bo‘sh bo‘ladi. Seed:
-```bash
-# lokal .env da xuddi shu Neon DATABASE_URL
-npm run db:seed
-```
-Yoki Vercel CLI: `vercel env pull .env.production.local` → keyin `npm run db:seed`.
-
 ---
 
 ## Lokal ishlash (Postgres)

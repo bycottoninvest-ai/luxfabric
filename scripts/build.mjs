@@ -54,6 +54,17 @@ const isRealPostgres =
 if (isRealPostgres && (process.env.VERCEL || process.env.CI || process.env.PRISMA_MIGRATE_DEPLOY === "1")) {
   const deployStatus = run(prismaBin, ["migrate", "deploy"]);
   if (deployStatus !== 0) process.exit(deployStatus);
+
+  /**
+   * Katalog bo‘sh bo‘lsa avtomatik seed (idempotent: seed.ts mahsulotlar > 0 bo‘lsa skip).
+   * Lokal Neon/.env kerak emas — Vercel buildda DATABASE_URL allaqachon bor.
+   */
+  console.log("[build] prisma db seed (bo‘sh bo‘lsa to‘ldiriladi)...");
+  const seedStatus = run(prismaBin, ["db", "seed"]);
+  if (seedStatus !== 0) {
+    console.warn("[build] seed muvaffaqiyatsiz — katalog bo‘sh qolishi mumkin");
+    process.exit(seedStatus);
+  }
 }
 
 const buildStatus = run(nextBin, ["build"]);
