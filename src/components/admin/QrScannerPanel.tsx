@@ -35,7 +35,7 @@ type ScanRow = {
   id: string;
   action: string;
   note: string | null;
-  createdAt: string;
+  createdAt: string | Date;
   variant?: { product: { name: string }; color: string; size: string } | null;
   order?: { orderNumber: string } | null;
   warehouse?: { name: string } | null;

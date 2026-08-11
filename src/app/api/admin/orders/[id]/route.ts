@@ -48,12 +48,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
     }
 
-    if (!body.status) {
+    const status = body.status;
+    if (!status) {
       return NextResponse.json({ error: "status yoki warehouseId kerak" }, { status: 400 });
     }
 
-    const flow = ORDER_FLOW.find((f) => f.status === body.status);
-    const title = flow?.title || body.status;
+    const flow = ORDER_FLOW.find((f) => f.status === status);
+    const title = flow?.title || status;
 
     const order = await prisma.$transaction(async (tx) => {
       const current = await tx.order.findUnique({
@@ -63,7 +64,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!current) throw new Error("Buyurtma topilmadi");
 
       if (
-        body.status === "CANCELLED" &&
+        status === "CANCELLED" &&
         current.status !== "CANCELLED" &&
         current.stockDeducted &&
         current.warehouseId
@@ -95,17 +96,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return tx.order.update({
         where: { id },
         data: {
-          status: body.status,
+          status,
           ...(body.warehouseId !== undefined ? { warehouseId: body.warehouseId } : {}),
-          ...(body.status === "DELIVERED" ? { paymentStatus: "PAID" } : {}),
-          ...(body.status === "CANCELLED" ? { stockDeducted: false } : {}),
+          ...(status === "DELIVERED" ? { paymentStatus: "PAID" } : {}),
+          ...(status === "CANCELLED" ? { stockDeducted: false } : {}),
           events: {
             create: {
-              status: body.status,
+              status,
               title,
               note:
                 body.note ||
-                (body.status === "CANCELLED" && current.stockDeducted
+                (status === "CANCELLED" && current.stockDeducted
                   ? "Bekor · stock omborga qaytarildi"
                   : "Admin panel orqali yangilandi"),
             },
@@ -115,11 +116,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
 
     const event =
-      body.status === "CANCELLED"
+      status === "CANCELLED"
         ? "CANCELLED"
-        : body.status === "DELIVERED"
+        : status === "DELIVERED"
           ? "DELIVERED"
-          : body.status === "PACKED"
+          : status === "PACKED"
             ? "PACKED"
             : "STATUS";
 
