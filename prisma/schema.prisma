@@ -3,7 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  // Production: Neon / Prisma Postgres. Lokal: xuddi shu Postgres URL (SQLite Vercelda ishlamaydi).
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

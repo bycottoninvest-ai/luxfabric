@@ -6,10 +6,10 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const isWin = process.platform === "win32";
 
-/** Vercel/CI: Prisma generate uchun dummy SQLite URL (production data keyin Postgres). */
+/** Vercel/CI: Prisma generate uchun dummy Postgres URL (haqiqiy data — Neon DATABASE_URL). */
 if (!process.env.DATABASE_URL && (process.env.VERCEL || process.env.CI)) {
-  // Prisma `file:` yo‘llari schema papkasiga nisbatan (`prisma/`).
-  process.env.DATABASE_URL = "file:./build.db";
+  process.env.DATABASE_URL =
+    "postgresql://build:build@127.0.0.1:5432/build?schema=public";
 }
 
 function bin(name) {
@@ -41,17 +41,19 @@ if (generateStatus !== 0) {
   );
 }
 
-/** Build paytida sahifalar Prisma o‘qiydi — fayl bo‘lmasa schema ni push qilamiz. */
-const dbUrl = process.env.DATABASE_URL;
-if (dbUrl.startsWith("file:")) {
-  const rel = dbUrl.replace(/^file:/, "");
-  const dbPath = path.isAbsolute(rel)
-    ? rel
-    : path.resolve(root, "prisma", rel.startsWith("./") ? rel.slice(2) : rel);
-  if (!existsSync(dbPath)) {
-    const pushStatus = run(prismaBin, ["db", "push", "--skip-generate"]);
-    if (pushStatus !== 0) process.exit(pushStatus);
-  }
+/**
+ * Production: haqiqiy DATABASE_URL bo‘lsa sxemani deploy qilamiz.
+ * Dummy/local build URL bo‘lsa migrate o‘tkazilmaydi (faqat generate + next build).
+ */
+const dbUrl = process.env.DATABASE_URL || "";
+const isRealPostgres =
+  dbUrl.startsWith("postgres") &&
+  !dbUrl.includes("@127.0.0.1:5432/build") &&
+  !dbUrl.includes("@localhost:5432/build");
+
+if (isRealPostgres && (process.env.VERCEL || process.env.CI || process.env.PRISMA_MIGRATE_DEPLOY === "1")) {
+  const deployStatus = run(prismaBin, ["migrate", "deploy"]);
+  if (deployStatus !== 0) process.exit(deployStatus);
 }
 
 const buildStatus = run(nextBin, ["build"]);
