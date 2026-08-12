@@ -27,6 +27,29 @@ function run(command, args) {
   return result.status ?? 1;
 }
 
+function sleep(ms) {
+  // Sync kutish (build skripti); Atomics.wait asosiy threadda taqiqlangan.
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    /* spin */
+  }
+}
+
+/** Neon advisory lock / timeout (P1002) uchun qayta urinish. */
+function runWithRetry(command, args, { attempts = 4, delayMs = 8000, label = "command" } = {}) {
+  let status = 1;
+  for (let i = 1; i <= attempts; i++) {
+    console.log(`[build] ${label} (urinish ${i}/${attempts})...`);
+    status = run(command, args);
+    if (status === 0) return 0;
+    if (i < attempts) {
+      console.warn(`[build] ${label} muvaffaqiyatsiz (${status}) — ${delayMs}ms kutamiz`);
+      sleep(delayMs);
+    }
+  }
+  return status;
+}
+
 const prismaBin = bin("prisma");
 const nextBin = bin("next");
 
@@ -52,7 +75,9 @@ const isRealPostgres =
   !dbUrl.includes("@localhost:5432/build");
 
 if (isRealPostgres && (process.env.VERCEL || process.env.CI || process.env.PRISMA_MIGRATE_DEPLOY === "1")) {
-  const deployStatus = run(prismaBin, ["migrate", "deploy"]);
+  const deployStatus = runWithRetry(prismaBin, ["migrate", "deploy"], {
+    label: "prisma migrate deploy",
+  });
   if (deployStatus !== 0) process.exit(deployStatus);
 
   /**
