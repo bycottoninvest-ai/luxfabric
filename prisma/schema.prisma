@@ -149,6 +149,16 @@ model Order {
   note              String?
   source            String          @default("STORE")
   deliveryType      String          @default("SHOP_DELIVERY")
+  /// Viloyat kodi (TAS, XOR, …) — promise / carrier matrix
+  regionCode        String?
+  /// HOME | PVZ | WAREHOUSE
+  handoffMode       String?
+  /// Mijozga va’da qilingan yetkazish sanasi (kun oxiri, Toshkent)
+  promisedBy        DateTime?
+  /// Ombor jo‘natish deadline (cutoff 15:00)
+  shipBy            DateTime?
+  /// Checkoutdagi va’da matni (snapshot)
+  promiseLabel      String?
   notifyChannel     String          @default("SMS")
   telegramUsername  String?
   preferredCourierId String?
@@ -180,6 +190,9 @@ model Order {
   reviews           Review[]
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+
+  @@index([shipBy, status])
+  @@index([regionCode])
 }
 
 /// Mahsulot sharhi (Wildberries-lite): yulduz + matn + foto

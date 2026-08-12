@@ -8,6 +8,23 @@
 
 ---
 
+## Sistema nima qiladi (ishlaydigan kod)
+
+| Modul | Vazifa | Joy |
+|-------|--------|-----|
+| **Promise engine** | Region + usul + kuryer + cutoff 15:00 → `promisedBy` / `shipBy` saqlanadi | `src/lib/delivery-promise.ts`, `tashkent-time.ts` |
+| **Carrier matrix** | Viloyat bo‘yicha tartib + «Tavsiya etiladi» (TAS: Yandex; viloyat/XOR: BTS/Fargo PVZ) | `src/lib/carrier-matrix.ts` |
+| **Fulfillment pipeline** | `NEW→PAID→PICKING→PACKED→SHIPPED\|READY_PICKUP→DELIVERED→DONE` · har o‘tishda event | `src/lib/fulfillment.ts`, admin buyurtmalar |
+| **PVZ-first checkout** | «Uyga» vs «Punktdan» · punkt majburiy PVZ da | `checkout/page.tsx` |
+| **Ops** | Cutoff eslatma · «Bugun jo‘natilishi kerak» · SHIPPED da trek majburiy | `/admin/orders` |
+| **Mijoz track** | `promisedBy`, hozirgi bosqich, keyingi qadam, kuryer link · **Live GPS yo‘q** | `/track/[orderNumber]` |
+
+**World patternlar (moslashtirilgan):** Cainiao/JD — hub + cutoff + ship-by + expected-by; Pinduoduo — PVZ default; DHL Packstation / Zalando — Click&Collect + carrier matrix + aniq SLA bands, overpromise yo‘q.
+
+**Ops intizom:** ish kunlari 15:00 gacha tasdiqlangan buyurtma — shu kun `shipBy`; trek bo‘lmasa `SHIPPED` yo‘q.
+
+---
+
 ## 1. Nima uchun bu katta yutuq?
 
 Fashion sotuvda mijoz **tezlikni** emas, balki **va’da + fakt** ni solishtiradi. Keçikish, trek yo‘qligi, COD chalkashligi — qaytarish va salbiy sharhga olib keladi.  
@@ -185,9 +202,12 @@ Bayram / ob-havo / yo‘l yopilishi — UI da «taxminiy», kafolat emas.
 | Narsa | Joy |
 |-------|-----|
 | Kuryer katalogi | `src/lib/uz-couriers.ts` |
-| Taxminiy ETA | `src/lib/delivery-eta.ts` |
+| Promise / ETA | `src/lib/delivery-promise.ts`, `delivery-eta.ts` |
+| Carrier matrix | `src/lib/carrier-matrix.ts` |
+| Fulfillment | `src/lib/fulfillment.ts` |
 | Checkout | `src/app/checkout/page.tsx` |
 | Tracking timeline | `src/lib/order-tracking.ts`, `/track/[orderNumber]` |
+| Admin pipeline | `src/app/admin/orders/page.tsx` |
 | Holat | `docs/HOLAT-SAQLANGAN.md` |
 
 ---

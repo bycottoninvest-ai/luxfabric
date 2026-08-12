@@ -9,10 +9,12 @@ import {
   buildCustomerTimeline,
   currentLocationLabel,
   deliveryTypeLabel,
+  formatPromisedByLabel,
+  handoffLabel,
+  nextCustomerStep,
   resolveCourierMeta,
 } from "@/lib/order-tracking";
-import { estimateDeliveryLabel } from "@/lib/delivery-eta";
-import { matchUzFromGeoText } from "@/lib/uzbekistan-regions";
+import { normalizeStatus } from "@/lib/fulfillment";
 import { ORDER_STATUS, formatSom } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +32,8 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
   });
   if (!order) notFound();
 
-  const st = ORDER_STATUS[order.status] || ORDER_STATUS.NEW;
+  const statusKey = normalizeStatus(order.status);
+  const st = ORDER_STATUS[statusKey] || ORDER_STATUS.NEW;
   const timeline = buildCustomerTimeline(order);
   const location = currentLocationLabel(order);
   const courierMeta = resolveCourierMeta(order);
@@ -39,15 +42,10 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
     order.courierTracking
   );
   const isPickup = order.deliveryType === "PICKUP";
-  const regionGuess = matchUzFromGeoText(order.city)?.regionCode || "TAS";
-  const etaLabel = estimateDeliveryLabel({
-    regionCode: regionGuess,
-    deliveryType:
-      order.deliveryType === "PICKUP" || order.deliveryType === "COURIER_CHOICE"
-        ? order.deliveryType
-        : "SHOP_DELIVERY",
-    courierKey: courierMeta?.code || order.courierCode || order.courierCompanyId,
-  });
+  const promisedLabel = formatPromisedByLabel(order.promisedBy);
+  const next = nextCustomerStep(order.status, order.deliveryType, order.paymentStatus);
+  const handoff = handoffLabel(order.handoffMode);
+  const terminal = ["DELIVERED", "DONE", "CANCELLED"].includes(statusKey);
 
   return (
     <StoreShell>
@@ -62,7 +60,7 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
         </span>
       </div>
 
-      {/* Hozirgi joy — status asosida (yolg‘on GPS emas) */}
+      {/* Va’da + hozirgi bosqich */}
       <div className="mt-4 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lf-pink text-lf-red">
@@ -70,22 +68,33 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
           </div>
           <div className="min-w-0">
             <div className="text-xs font-semibold uppercase tracking-[0.12em] text-lf-muted">
-              Hozirgi joy
+              Hozirgi bosqich
             </div>
             <div className="mt-0.5 text-sm font-semibold text-lf-text">{location}</div>
             <div className="mt-1 text-xs text-lf-muted">
               {deliveryTypeLabel(order.deliveryType)}
-              {isPickup
-                ? ""
-                : ` · ${order.city}${order.address ? `, ${order.address}` : ""}`}
+              {handoff ? ` · ${handoff}` : ""}
+              {isPickup ? "" : ` · ${order.city}${order.address ? `, ${order.address}` : ""}`}
             </div>
-            {!["DELIVERED", "CANCELLED", "RETURNED"].includes(order.status) && (
-              <div className="mt-2 text-xs font-medium text-emerald-800">{etaLabel}</div>
+            {!terminal && promisedLabel && (
+              <div className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">
+                Kutiladi: {promisedLabel} gacha
+                {order.promiseLabel ? (
+                  <span className="mt-0.5 block font-normal text-emerald-800/80">
+                    {order.promiseLabel}
+                  </span>
+                ) : null}
+              </div>
+            )}
+            {!terminal && next && (
+              <div className="mt-2 text-xs text-lf-muted">
+                <span className="font-semibold text-lf-text">Keyingi qadam:</span> {next.title}
+                {next.hint ? ` — ${next.hint}` : ""}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Progress strip */}
         <div className="mt-4 flex gap-1">
           {timeline.map((step) => (
             <div
@@ -102,7 +111,6 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
         </div>
       </div>
 
-      {/* Aniq status timeline */}
       <div className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
         <h2 className="mb-4 text-sm font-bold">Holatlar</h2>
         <ol className="space-y-0">
@@ -151,7 +159,6 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
         </ol>
       </div>
 
-      {/* O‘zi olib ketish: ombor + xabar */}
       {isPickup && order.warehouse && (
         <div className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-bold">
@@ -165,37 +172,23 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
           {order.warehouse.phone && (
             <div className="mt-1 text-xs text-lf-muted">Tel: {order.warehouse.phone}</div>
           )}
-          <p className="mt-3 rounded-2xl bg-lf-pink/60 px-3 py-2 text-xs text-lf-text">
-            Buyurtma tayyor bo‘lganda{" "}
-            {order.notifyChannel === "TELEGRAM"
-              ? "Telegram"
-              : order.notifyChannel === "BOTH"
-                ? "SMS va Telegram"
-                : order.notifyChannel === "NONE"
-                  ? "do‘kon"
-                  : "SMS"}{" "}
-            orqali xabar beriladi
-            {order.telegramUsername && order.notifyChannel !== "SMS" && order.notifyChannel !== "NONE"
-              ? ` (@${order.telegramUsername.replace(/^@/, "")})`
-              : ""}
-            . Keyin shu ombordan olib ketishingiz mumkin.
-          </p>
         </div>
       )}
 
-      {/* Kuryer + rasmiy tracking */}
-      {!isPickup && (courierMeta || order.courierTracking) && (
+      {!isPickup && (courierMeta || order.courierTracking || order.handoffMode === "PVZ") && (
         <div className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
           <div className="text-sm font-bold">Kuryer</div>
           <div className="mt-1 text-sm font-semibold">
-            {courierMeta?.name || order.courierLabel || "Kuryer"}
+            {courierMeta?.name || order.courierLabel || "Kuryer (do‘kon tanlaydi)"}
           </div>
+          {handoff && <div className="mt-1 text-xs text-lf-muted">{handoff}</div>}
           {order.courierBranchLabel && (
             <div className="mt-1 text-xs text-lf-muted">Punkt: {order.courierBranchLabel}</div>
           )}
           {order.courierTracking ? (
             <div className="mt-2 text-xs text-lf-muted">
-              Trek-kod: <span className="font-mono font-semibold text-lf-text">{order.courierTracking}</span>
+              Trek-kod:{" "}
+              <span className="font-mono font-semibold text-lf-text">{order.courierTracking}</span>
             </div>
           ) : (
             <div className="mt-2 text-xs text-lf-muted">
@@ -214,7 +207,7 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
             </a>
           )}
           <p className="mt-2 text-[11px] text-lf-muted">
-            Jonli GPS kuryer API kaliti talab qiladi. Kuzatuv: statuslar + rasmiy trekod.
+            Jonli GPS yo‘q — holatlar + rasmiy trek-kod (kuryer sayti).
           </p>
         </div>
       )}
@@ -240,7 +233,6 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
         </div>
       </div>
 
-      {/* Ixtiyoriy: xom event tarixi (agar timeline dan boshqa yozuvlar bo‘lsa) */}
       {order.events.length > 1 && (
         <details className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
           <summary className="cursor-pointer text-sm font-bold">Batafsil tarix</summary>

@@ -11,6 +11,9 @@ import {
   getUzCourierById,
   UZ_COURIERS,
 } from "@/lib/uz-couriers";
+import { computeDeliveryPromise } from "@/lib/delivery-promise";
+import { defaultHandoffForRegion, shopDefaultCourierCode } from "@/lib/carrier-matrix";
+import { matchUzFromGeoText } from "@/lib/uzbekistan-regions";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -20,9 +23,12 @@ const schema = z.object({
     .refine((v) => isValidUzPhone(v), "Telefon +998XXXXXXXXX formatida bo‘lishi kerak (12 raqam)"),
   city: z.string().min(2),
   address: z.string().min(3),
+  regionCode: z.string().optional().nullable(),
   paymentMethod: z.enum(["CLICK", "PAYME", "CARD", "COD"]),
   source: z.enum(["STORE", "INSTAGRAM", "TELEGRAM", "ADMIN"]).optional(),
   deliveryType: z.enum(["SHOP_DELIVERY", "COURIER_CHOICE", "PICKUP"]).default("SHOP_DELIVERY"),
+  /** HOME | PVZ | WAREHOUSE */
+  handoffMode: z.enum(["HOME", "PVZ", "WAREHOUSE"]).optional().nullable(),
   preferredCourierId: z.string().optional().nullable(),
   /** Katalog id yoki code: bts / BTS */
   courierCompanyId: z.string().optional().nullable(),
@@ -185,6 +191,7 @@ export async function POST(req: Request) {
       body.paymentMethod === "PAYME"
         ? "PENDING"
         : "PAID";
+    const initialStatus = paymentStatus === "PAID" ? "PAID" : "NEW";
     const source = body.source || "STORE";
     const label = deliveryLabel(
       body.deliveryType,
@@ -192,6 +199,39 @@ export async function POST(req: Request) {
       warehouse.name,
       courierBranchLabel
     );
+
+    const regionCode =
+      (body.regionCode || "").trim().toUpperCase() ||
+      matchUzFromGeoText(body.city)?.regionCode ||
+      "TAS";
+
+    const courierKeyForPromise =
+      preferredCourier?.code ||
+      (body.deliveryType === "SHOP_DELIVERY" ? shopDefaultCourierCode(regionCode) : null);
+
+    let handoffMode =
+      body.handoffMode ||
+      (body.deliveryType === "PICKUP"
+        ? "WAREHOUSE"
+        : defaultHandoffForRegion(regionCode, courierCompanyId || preferredCourier?.code));
+
+    if (body.deliveryType === "PICKUP") handoffMode = "WAREHOUSE";
+    // Punktsiz uyga — branch bo‘lmasa HOME
+    if (
+      body.deliveryType === "COURIER_CHOICE" &&
+      handoffMode === "PVZ" &&
+      !courierBranchId &&
+      (preferredCourier?.code || "").toUpperCase() === "YANDEX"
+    ) {
+      handoffMode = "HOME";
+    }
+
+    const promise = computeDeliveryPromise({
+      regionCode,
+      deliveryType: body.deliveryType,
+      courierKey: courierKeyForPromise,
+      handoffMode,
+    });
 
     const order = await prisma.$transaction(async (tx) => {
       // Stock faqat tekshiriladi — haqiqiy yechish QR skanerda (omborda)
@@ -206,10 +246,32 @@ export async function POST(req: Request) {
         }
       }
 
+      const events =
+        initialStatus === "PAID"
+          ? [
+              {
+                status: "NEW",
+                title: "Buyurtma qabul qilindi",
+                note: `${source} · ${warehouse!.name} · ${label} · ${body.paymentMethod}`,
+              },
+              {
+                status: "PAID",
+                title: "To‘lov tasdiqlandi",
+                note: `${body.paymentMethod} · va’da: ${promise.label}`,
+              },
+            ]
+          : [
+              {
+                status: "NEW",
+                title: "Buyurtma qabul qilindi",
+                note: `${source} · ${warehouse!.name} · ${label} · ${body.paymentMethod} · ${promise.label} · Stock QR skanda yečiladi`,
+              },
+            ];
+
       return tx.order.create({
         data: {
           orderNumber,
-          status: "NEW",
+          status: initialStatus,
           paymentMethod: body.paymentMethod,
           paymentStatus,
           subtotal,
@@ -219,6 +281,11 @@ export async function POST(req: Request) {
           customerPhone: body.phone,
           city: body.city,
           address: body.address,
+          regionCode,
+          handoffMode,
+          promisedBy: promise.promisedBy,
+          shipBy: promise.shipBy,
+          promiseLabel: promise.label,
           source,
           deliveryType: body.deliveryType,
           notifyChannel: body.notifyChannel,
@@ -241,15 +308,7 @@ export async function POST(req: Request) {
               pickedQty: 0,
             })),
           },
-          events: {
-            create: [
-              {
-                status: "NEW",
-                title: "Buyurtma qabul qilindi",
-                note: `${source} · ${warehouse!.name} · ${label} · ${body.paymentMethod} · Stock QR skanda yečiladi`,
-              },
-            ],
-          },
+          events: { create: events },
         },
       });
     });
@@ -287,6 +346,8 @@ export async function POST(req: Request) {
       warehouse: warehouse.name,
       deliveryType: body.deliveryType,
       deliveryLabel: label,
+      promisedBy: order.promisedBy,
+      promiseLabel: order.promiseLabel,
       paymentStatus: order.paymentStatus,
       paymentUrl,
       notify,

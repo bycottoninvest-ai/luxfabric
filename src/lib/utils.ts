@@ -30,21 +30,29 @@ export function isValidUzPhone(phone: string) {
 
 export const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   NEW: { label: "Yangi", color: "bg-sky-500" },
+  PAID: { label: "To‘langan", color: "bg-cyan-600" },
   PICKING: { label: "Yig‘ilmoqda", color: "bg-amber-500" },
   PACKED: { label: "Qadoqlangan", color: "bg-violet-500" },
-  WITH_COURIER: { label: "Kuryerga berildi", color: "bg-indigo-500" },
+  SHIPPED: { label: "Jo‘natildi", color: "bg-indigo-500" },
+  READY_PICKUP: { label: "Olib ketishga tayyor", color: "bg-teal-600" },
+  /** Eski aliaslar */
+  WITH_COURIER: { label: "Jo‘natildi", color: "bg-indigo-500" },
   ON_THE_WAY: { label: "Yo‘lda", color: "bg-orange-500" },
   DELIVERED: { label: "Yetkazildi", color: "bg-emerald-500" },
+  DONE: { label: "Yakunlandi", color: "bg-emerald-700" },
   CANCELLED: { label: "Bekor qilindi", color: "bg-rose-500" },
 };
 
+/** Admin pipeline (pickupda READY_PICKUP, kuryerda SHIPPED). */
 export const ORDER_FLOW = [
   { status: "NEW", title: "Buyurtma qabul qilindi" },
+  { status: "PAID", title: "To‘lov tasdiqlandi" },
   { status: "PICKING", title: "Omborda yig‘ilmoqda" },
   { status: "PACKED", title: "Qadoqlandi" },
-  { status: "WITH_COURIER", title: "Kuryerga topshirildi" },
-  { status: "ON_THE_WAY", title: "Yo‘lda" },
+  { status: "SHIPPED", title: "Kuryerga topshirildi" },
+  { status: "READY_PICKUP", title: "Olib ketishga tayyor" },
   { status: "DELIVERED", title: "Yetkazildi" },
+  { status: "DONE", title: "Yakunlandi" },
 ] as const;
 
 export function generateOrderNumber() {

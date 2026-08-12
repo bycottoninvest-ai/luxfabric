@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       });
       if (!order) return NextResponse.json({ error: "Buyurtma topilmadi" }, { status: 404 });
 
-      if (order.status === "NEW") {
+      if (order.status === "NEW" || order.status === "PAID") {
         await prisma.order.update({
           where: { id: order.id },
           data: {
@@ -229,7 +229,7 @@ export async function POST(req: Request) {
         const allDone = freshItems.every((i) => i.pickedQty >= i.quantity);
 
         let status = order.status;
-        if (order.status === "NEW") status = "PICKING";
+        if (order.status === "NEW" || order.status === "PAID") status = "PICKING";
         if (allDone) status = "PACKED";
 
         await tx.order.update({
@@ -247,7 +247,7 @@ export async function POST(req: Request) {
                     },
                   },
                 }
-              : order.status === "NEW"
+              : order.status === "NEW" || order.status === "PAID"
                 ? {
                     events: {
                       create: {

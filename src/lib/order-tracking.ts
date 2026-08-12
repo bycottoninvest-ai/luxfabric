@@ -1,4 +1,11 @@
 import { getUzCourierByCode, getUzCourierById } from "@/lib/uz-couriers";
+import {
+  STATUS_RANK,
+  flowForDelivery,
+  nextCustomerStep,
+  normalizeStatus,
+} from "@/lib/fulfillment";
+import { formatPromisedByLabel } from "@/lib/delivery-eta";
 
 export type TimelineStepState = "done" | "current" | "upcoming";
 
@@ -19,6 +26,9 @@ export type TrackingOrderLike = {
   telegramUsername?: string | null;
   city: string;
   address: string;
+  promisedBy?: Date | string | null;
+  promiseLabel?: string | null;
+  handoffMode?: string | null;
   courierCompanyId?: string | null;
   courierCode?: string | null;
   courierLabel?: string | null;
@@ -44,16 +54,6 @@ export type TrackingOrderLike = {
   }>;
 };
 
-const STATUS_RANK: Record<string, number> = {
-  NEW: 0,
-  PICKING: 2,
-  PACKED: 3,
-  WITH_COURIER: 4,
-  ON_THE_WAY: 4,
-  DELIVERED: 5,
-  CANCELLED: -1,
-};
-
 function eventAt(
   events: TrackingOrderLike["events"],
   match: (ev: NonNullable<TrackingOrderLike["events"]>[number]) => boolean
@@ -69,98 +69,25 @@ function paidAt(order: TrackingOrderLike): Date | null {
     eventAt(
       order.events,
       (ev) =>
+        ev.status === "PAID" ||
         /to[‘']?landi|to[‘']?lov|paid|click/i.test(ev.title) ||
         /to[‘']?landi|paid|click/i.test(ev.note || "")
     ) || eventAt(order.events, (ev) => ev.status === "NEW")
   );
 }
 
-/** Mijoz uchun aniq status qadamlari (yetkazish turiga qarab). */
+function statusAt(order: TrackingOrderLike, statuses: string[]): Date | null {
+  return eventAt(order.events, (e) => statuses.includes(e.status));
+}
+
+/** Mijoz uchun aniq status qadamlari (event + fulfillment). */
 export function buildCustomerTimeline(order: TrackingOrderLike): TimelineStep[] {
-  const isPickup = order.deliveryType === "PICKUP";
-  const rank = STATUS_RANK[order.status] ?? 0;
-  const isPaid = order.paymentStatus === "PAID";
+  const cur = normalizeStatus(order.status);
+  const rank = STATUS_RANK[cur] ?? 0;
+  const isPaid = order.paymentStatus === "PAID" || cur === "PAID" || rank >= STATUS_RANK.PAID;
   const isCancelled = order.status === "CANCELLED";
   const isCod = order.paymentMethod === "COD";
-
-  const defs: Array<{ id: string; title: string; hint?: string; done: boolean; at?: Date | null }> =
-    isPickup
-      ? [
-          {
-            id: "received",
-            title: "Buyurtma qabul qilindi",
-            done: true,
-            at: eventAt(order.events, (e) => e.status === "NEW") || null,
-          },
-          {
-            id: "paid",
-            title: "To‘lov tasdiqlandi",
-            hint: isCod && !isPaid ? "Yetkazishda / olib ketishda (COD)" : undefined,
-            done: isPaid,
-            at: paidAt(order),
-          },
-          {
-            id: "picking",
-            title: "Omborda yig‘ilmoqda",
-            done: rank >= 2,
-            at: eventAt(order.events, (e) => e.status === "PICKING" || e.status === "PACKED"),
-          },
-          {
-            id: "ready",
-            title: "Olib ketishga tayyor",
-            hint: notifyHint(order),
-            done: rank >= 3,
-            at: eventAt(order.events, (e) => e.status === "PACKED" || e.status === "DELIVERED"),
-          },
-          {
-            id: "done",
-            title: "Yakunlandi",
-            done: rank >= 5,
-            at: eventAt(order.events, (e) => e.status === "DELIVERED"),
-          },
-        ]
-      : [
-          {
-            id: "received",
-            title: "Buyurtma qabul qilindi",
-            done: true,
-            at: eventAt(order.events, (e) => e.status === "NEW") || null,
-          },
-          {
-            id: "paid",
-            title: "To‘lov tasdiqlandi",
-            hint: isCod && !isPaid ? "Yetkazib berganda (COD)" : undefined,
-            done: isPaid,
-            at: paidAt(order),
-          },
-          {
-            id: "picking",
-            title: "Omborda yig‘ilmoqda",
-            done: rank >= 2,
-            at: eventAt(order.events, (e) => e.status === "PICKING" || e.status === "PACKED"),
-          },
-          {
-            id: "transit",
-            title: "Yo‘lda / Kuryerga topshirildi",
-            done: rank >= 4,
-            at: eventAt(
-              order.events,
-              (e) => e.status === "WITH_COURIER" || e.status === "ON_THE_WAY"
-            ),
-          },
-          {
-            id: "delivered",
-            title: "Yetkazib berildi",
-            done: rank >= 5,
-            at: eventAt(order.events, (e) => e.status === "DELIVERED"),
-          },
-          {
-            id: "done",
-            title: "Yakunlandi",
-            done: rank >= 5,
-            at: eventAt(order.events, (e) => e.status === "DELIVERED"),
-          },
-        ];
+  const flow = flowForDelivery(order.deliveryType);
 
   if (isCancelled) {
     return [
@@ -179,11 +106,51 @@ export function buildCustomerTimeline(order: TrackingOrderLike): TimelineStep[] 
     ];
   }
 
+  const defs = flow.map((step) => {
+    const r = STATUS_RANK[step.status] ?? 0;
+    let done = false;
+    if (step.status === "NEW") done = true;
+    else if (step.status === "PAID") done = isPaid && rank > STATUS_RANK.PAID;
+    else if (cur === "DONE") done = r <= STATUS_RANK.DONE;
+    else done = rank > r;
+
+    let at: Date | null = null;
+    if (step.status === "NEW") at = statusAt(order, ["NEW"]);
+    else if (step.status === "PAID") at = paidAt(order);
+    else if (step.status === "PICKING") at = statusAt(order, ["PICKING"]);
+    else if (step.status === "PACKED") at = statusAt(order, ["PACKED"]);
+    else if (step.status === "SHIPPED")
+      at = statusAt(order, ["SHIPPED", "WITH_COURIER", "ON_THE_WAY"]);
+    else if (step.status === "READY_PICKUP") at = statusAt(order, ["READY_PICKUP"]);
+    else if (step.status === "DELIVERED") at = statusAt(order, ["DELIVERED", "DONE"]);
+    else if (step.status === "DONE") at = statusAt(order, ["DONE"]);
+
+    const hint =
+      step.status === "PAID" && isCod && order.paymentStatus !== "PAID" && rank < STATUS_RANK.DELIVERED
+        ? "Yetkazib berganda / olib ketishda (COD)"
+        : step.status === "READY_PICKUP"
+          ? notifyHint(order)
+          : step.status === "SHIPPED" && !order.courierTracking
+            ? "Trek-kod kiritilgach kuzatishingiz mumkin"
+            : undefined;
+
+    return {
+      id: step.status.toLowerCase(),
+      title: step.customerTitle,
+      hint,
+      done,
+      at,
+      status: step.status,
+      rank: r,
+    };
+  });
+
   let currentSet = false;
   return defs.map((d) => {
+    const codDeferPaid =
+      d.status === "PAID" && isCod && order.paymentStatus !== "PAID" && rank >= STATUS_RANK.PICKING;
+
     let state: TimelineStepState;
-    // COD: to‘lov oxirida — ombor ishi boshlanganda paid qadamini «current» qilib qoldirmaymiz
-    const codDeferPaid = d.id === "paid" && isCod && !isPaid && rank >= 2;
     if (d.done) {
       state = "done";
     } else if (codDeferPaid) {
@@ -220,23 +187,31 @@ export function currentLocationLabel(order: TrackingOrderLike): string {
     order.courierLabel ||
     resolveCourierMeta(order)?.name ||
     "kuryer";
+  const s = normalizeStatus(order.status);
 
   if (order.status === "CANCELLED") return "Buyurtma bekor qilindi";
-  if (order.status === "DELIVERED") {
+  if (s === "DONE" || s === "DELIVERED") {
     return order.deliveryType === "PICKUP"
       ? `Olib ketildi · ${whLabel}`
       : `Yetkazib berildi · ${order.city}`;
   }
-  if (order.status === "ON_THE_WAY" || order.status === "WITH_COURIER") {
-    return `Kuryerda: ${courierName}${order.courierTracking ? ` · trek ${order.courierTracking}` : ""}`;
+  if (s === "SHIPPED") {
+    const mode =
+      order.handoffMode === "PVZ" && order.courierBranchLabel
+        ? ` · punkt: ${order.courierBranchLabel}`
+        : "";
+    return `Kuryerda: ${courierName}${order.courierTracking ? ` · trek ${order.courierTracking}` : ""}${mode}`;
   }
-  if (order.status === "PACKED") {
+  if (s === "READY_PICKUP") {
+    return `Olib ketishga tayyor · ${whLabel}`;
+  }
+  if (s === "PACKED") {
     return order.deliveryType === "PICKUP"
-      ? `Olib ketishga tayyor · ${whLabel}`
+      ? `Qadoqlandi · tayyorlash · ${whLabel}`
       : `Qadoqlandi · jo‘natish kutilyapti · ${whLabel}`;
   }
-  if (order.status === "PICKING") return `Yig‘ilmoqda · ${whLabel}`;
-  if (order.paymentStatus === "PAID") return `To‘lov tasdiqlandi · ${whLabel}`;
+  if (s === "PICKING") return `Yig‘ilmoqda · ${whLabel}`;
+  if (s === "PAID" || order.paymentStatus === "PAID") return `To‘lov tasdiqlandi · ${whLabel}`;
   return `Qabul qilindi · ${whLabel}`;
 }
 
@@ -294,3 +269,12 @@ export function deliveryTypeLabel(deliveryType: string): string {
   if (deliveryType === "COURIER_CHOICE") return "Tanlangan kuryer";
   return "Do‘kon yetkazishi";
 }
+
+export function handoffLabel(mode?: string | null): string | null {
+  if (mode === "PVZ") return "Punktdan olish";
+  if (mode === "HOME") return "Uyga yetkazish";
+  if (mode === "WAREHOUSE") return "Ombordan olish";
+  return null;
+}
+
+export { nextCustomerStep, formatPromisedByLabel };

@@ -7,13 +7,17 @@ import { useCart } from "@/lib/cart";
 import { cn, formatSom, isValidUzPhone, maskUzPhone } from "@/lib/utils";
 import { UZ_REGIONS, formatCityLabel, getRegionByCode, matchUzFromGeoText } from "@/lib/uzbekistan-regions";
 import {
-  UZ_COURIER_COMPANIES,
   formatBranchLabel,
   sortBranchesByRegion,
   type UzCourierBranch,
-  type UzCourierCompany,
 } from "@/lib/uz-couriers";
-import { estimateDeliveryLabel } from "@/lib/delivery-eta";
+import { estimateDeliveryLabel, formatPromisedByLabel } from "@/lib/delivery-eta";
+import { computeDeliveryPromise } from "@/lib/delivery-promise";
+import {
+  defaultHandoffForRegion,
+  rankCarriersForRegion,
+  shopDefaultCourierCode,
+} from "@/lib/carrier-matrix";
 
 const payments = [
   { id: "CLICK", label: "Click" },
@@ -26,17 +30,17 @@ const deliveryTypes = [
   {
     id: "SHOP_DELIVERY",
     title: "Do‘kon o‘zi yuboradi",
-    desc: "Hech narsa tanlamasangiz — biz eng qulay kuryerni o‘zimiz tanlaymiz",
+    desc: "Eng ishonchli kuryerni biz tanlaymiz (PVZ-first viloyatlarda)",
   },
   {
     id: "COURIER_CHOICE",
     title: "O‘zim kuryer tanlayman",
-    desc: "Qayerdan olish qulay bo‘lsa — o‘sha kuryerni belgilaysiz",
+    desc: "Uyga yoki punktdan — kuryer va punktni o‘zingiz belgilaysiz",
   },
   {
     id: "PICKUP",
     title: "O‘zim olib ketaman",
-    desc: "Yaqin ombor / punktdan olib ketish",
+    desc: "Toshkent omboridan olib ketish (Click & Collect)",
   },
 ] as const;
 
@@ -92,6 +96,8 @@ type CheckoutForm = {
   address: string;
   paymentMethod: string;
   deliveryType: "SHOP_DELIVERY" | "COURIER_CHOICE" | "PICKUP";
+  /** HOME | PVZ */
+  handoffMode: "HOME" | "PVZ";
   /** uz-couriers company id (bts, fargo, …) */
   courierCompanyId: string;
   courierBranchId: string;
@@ -144,7 +150,6 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
-  const [courierCatalog] = useState<UzCourierCompany[]>(() => [...UZ_COURIER_COMPANIES]);
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [locating, setLocating] = useState(false);
   const [pickingContact, setPickingContact] = useState(false);
@@ -167,6 +172,7 @@ export default function CheckoutPage() {
     address: "",
     paymentMethod: "CLICK",
     deliveryType: "SHOP_DELIVERY",
+    handoffMode: "PVZ",
     courierCompanyId: "",
     courierBranchId: "",
     preferredCourierId: "",
@@ -178,35 +184,52 @@ export default function CheckoutPage() {
   const districts = useMemo(() => getRegionByCode(form.regionCode)?.districts || [], [form.regionCode]);
   const regionName = getRegionByCode(form.regionCode)?.name || "";
   const cityLabel = formatCityLabel(regionName, form.district);
+  const rankedCarriers = useMemo(
+    () => rankCarriersForRegion(form.regionCode),
+    [form.regionCode]
+  );
   const selectedCompany = useMemo(
-    () => courierCatalog.find((c) => c.id === form.courierCompanyId) || null,
-    [courierCatalog, form.courierCompanyId]
+    () => rankedCarriers.find((r) => r.company.id === form.courierCompanyId)?.company || null,
+    [rankedCarriers, form.courierCompanyId]
   );
   const sortedBranches = useMemo(() => {
     if (!selectedCompany) return [] as UzCourierBranch[];
     return sortBranchesByRegion(selectedCompany.branches, form.regionCode);
   }, [selectedCompany, form.regionCode]);
   const selectedBranch = sortedBranches.find((b) => b.id === form.courierBranchId) || null;
+  const courierKeyForEta =
+    form.deliveryType === "COURIER_CHOICE"
+      ? selectedCompany?.code || form.courierCompanyId || form.preferredCourierId
+      : form.deliveryType === "SHOP_DELIVERY"
+        ? shopDefaultCourierCode(form.regionCode)
+        : null;
+  const handoffForEta =
+    form.deliveryType === "PICKUP"
+      ? "WAREHOUSE"
+      : form.deliveryType === "COURIER_CHOICE"
+        ? form.handoffMode
+        : defaultHandoffForRegion(form.regionCode, shopDefaultCourierCode(form.regionCode).toLowerCase());
+  const deliveryPromise = useMemo(
+    () =>
+      computeDeliveryPromise({
+        regionCode: form.regionCode,
+        deliveryType: form.deliveryType,
+        courierKey: courierKeyForEta,
+        handoffMode: handoffForEta,
+      }),
+    [form.regionCode, form.deliveryType, courierKeyForEta, handoffForEta]
+  );
   const deliveryEta = useMemo(
     () =>
       estimateDeliveryLabel({
         regionCode: form.regionCode,
         deliveryType: form.deliveryType,
-        courierKey:
-          form.deliveryType === "COURIER_CHOICE"
-            ? selectedCompany?.code || form.courierCompanyId || form.preferredCourierId
-            : form.deliveryType === "SHOP_DELIVERY"
-              ? "BTS"
-              : null,
+        courierKey: courierKeyForEta,
+        handoffMode: handoffForEta,
       }),
-    [
-      form.regionCode,
-      form.deliveryType,
-      form.courierCompanyId,
-      form.preferredCourierId,
-      selectedCompany?.code,
-    ]
+    [form.regionCode, form.deliveryType, courierKeyForEta, handoffForEta]
   );
+  const promisedByText = formatPromisedByLabel(deliveryPromise.promisedBy);
 
   useEffect(() => {
     setMounted(true);
@@ -257,16 +280,23 @@ export default function CheckoutPage() {
       .catch(() => {});
   }, []);
 
-  // Viloyat o‘zgaganda: shu viloyatdagi birinchi punktni avtomatik belgilash
+  // Viloyat o‘zgaganda: mahalliy punktni yangilash (faqat COURIER + PVZ)
   useEffect(() => {
-    if (form.deliveryType !== "COURIER_CHOICE" || !selectedCompany) return;
+    if (form.deliveryType !== "COURIER_CHOICE" || form.handoffMode !== "PVZ" || !selectedCompany)
+      return;
     const ranked = sortBranchesByRegion(selectedCompany.branches, form.regionCode);
     if (!ranked.length) return;
     const stillValid = ranked.some((b) => b.id === form.courierBranchId);
     if (!stillValid) {
       setForm((f) => ({ ...f, courierBranchId: ranked[0].id }));
     }
-  }, [form.deliveryType, form.regionCode, form.courierBranchId, selectedCompany]);
+  }, [
+    form.deliveryType,
+    form.handoffMode,
+    form.regionCode,
+    form.courierBranchId,
+    selectedCompany,
+  ]);
 
   useEffect(() => {
     if (!isValidUzPhone(form.phone)) return;
@@ -340,6 +370,14 @@ export default function CheckoutPage() {
       return;
     }
     if (
+      form.deliveryType === "COURIER_CHOICE" &&
+      form.handoffMode === "PVZ" &&
+      !form.courierBranchId
+    ) {
+      setError("Punktdan olish uchun filial/punktni tanlang");
+      return;
+    }
+    if (
       (form.notifyChannel === "TELEGRAM" || form.notifyChannel === "BOTH") &&
       !form.telegramUsername.trim()
     ) {
@@ -357,12 +395,24 @@ export default function CheckoutPage() {
           phone: form.phone,
           city: cityLabel,
           address: form.address,
+          regionCode: form.regionCode,
           paymentMethod: form.paymentMethod,
           deliveryType: form.deliveryType,
+          handoffMode:
+            form.deliveryType === "PICKUP"
+              ? "WAREHOUSE"
+              : form.deliveryType === "COURIER_CHOICE"
+                ? form.handoffMode
+                : defaultHandoffForRegion(form.regionCode),
           courierCompanyId: form.deliveryType === "COURIER_CHOICE" ? form.courierCompanyId : null,
-          courierBranchId: form.deliveryType === "COURIER_CHOICE" ? form.courierBranchId || null : null,
+          courierBranchId:
+            form.deliveryType === "COURIER_CHOICE" && form.handoffMode === "PVZ"
+              ? form.courierBranchId || null
+              : null,
           courierBranchLabel:
-            form.deliveryType === "COURIER_CHOICE" && selectedBranch
+            form.deliveryType === "COURIER_CHOICE" &&
+            form.handoffMode === "PVZ" &&
+            selectedBranch
               ? formatBranchLabel(selectedBranch)
               : null,
           preferredCourierId: form.preferredCourierId || null,
@@ -653,7 +703,12 @@ export default function CheckoutPage() {
                 const code = e.target.value;
                 const firstDistrict = getRegionByCode(code)?.districts[0] || "";
                 setStep(1);
-                setForm({ ...form, regionCode: code, district: firstDistrict });
+                setForm({
+                  ...form,
+                  regionCode: code,
+                  district: firstDistrict,
+                  handoffMode: defaultHandoffForRegion(code, form.courierCompanyId),
+                });
               }}
               className="w-full rounded-xl border border-lf-border bg-lf-bg px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
             >
@@ -735,20 +790,31 @@ export default function CheckoutPage() {
                 type="button"
                 onClick={() => {
                   setStep(1);
-                  const first = courierCatalog[0];
+                  const first = rankedCarriers[0]?.company;
+                  const preferPvz = rankedCarriers[0]?.preferPvz ?? true;
+                  const handoff = d.id === "PICKUP" ? form.handoffMode : preferPvz ? "PVZ" : "HOME";
                   const firstBranch = first
                     ? sortBranchesByRegion(first.branches, form.regionCode)[0]
                     : null;
                   setForm({
                     ...form,
                     deliveryType: d.id,
+                    handoffMode:
+                      d.id === "COURIER_CHOICE"
+                        ? defaultHandoffForRegion(form.regionCode, first?.id)
+                        : form.handoffMode,
                     courierCompanyId:
                       d.id === "COURIER_CHOICE" ? form.courierCompanyId || first?.id || "" : "",
                     courierBranchId:
-                      d.id === "COURIER_CHOICE"
+                      d.id === "COURIER_CHOICE" && handoff === "PVZ"
                         ? form.courierBranchId || firstBranch?.id || ""
+                        : d.id === "COURIER_CHOICE"
+                          ? form.courierBranchId
+                          : "",
+                    preferredCourierId:
+                      d.id === "COURIER_CHOICE"
+                        ? form.preferredCourierId || first?.code || ""
                         : "",
-                    preferredCourierId: d.id === "COURIER_CHOICE" ? form.preferredCourierId : "",
                   });
                 }}
                 className={cn(
@@ -766,12 +832,42 @@ export default function CheckoutPage() {
 
           {form.deliveryType === "COURIER_CHOICE" && (
             <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { id: "PVZ" as const, title: "Punktdan olish", desc: "Ishonchliroq · PVZ/ofis" },
+                    { id: "HOME" as const, title: "Uyga yetkazish", desc: "Manzilga kuryer" },
+                  ] as const
+                ).map((h) => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => setForm({ ...form, handoffMode: h.id })}
+                    className={cn(
+                      "rounded-xl border px-3 py-2.5 text-left",
+                      form.handoffMode === h.id ? "border-lf-red bg-lf-pink" : "border-lf-border"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-semibold",
+                        form.handoffMode === h.id && "text-lf-red"
+                      )}
+                    >
+                      {h.title}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-lf-muted">{h.desc}</div>
+                  </button>
+                ))}
+              </div>
+
               <p className="text-xs text-lf-muted">
-                O‘zbekiston bo‘ylab yetkazadigan asosiy kompaniyalar. Viloyatingiz ({regionName}) dagi
-                punktlar birinchi ko‘rsatiladi.
+                Viloyatingiz ({regionName}) uchun tavsiya qilingan kuryer birinchi. Punktdan olish —
+                moda uchun eng ishonchli kanal.
               </p>
               <div className="grid gap-2">
-                {courierCatalog.map((c) => {
+                {rankedCarriers.map((rec) => {
+                  const c = rec.company;
                   const localCount = c.branches.filter((b) => b.regionCode === form.regionCode).length;
                   return (
                     <button
@@ -779,10 +875,12 @@ export default function CheckoutPage() {
                       type="button"
                       onClick={() => {
                         const ranked = sortBranchesByRegion(c.branches, form.regionCode);
+                        const handoff = defaultHandoffForRegion(form.regionCode, c.id);
                         setForm({
                           ...form,
                           courierCompanyId: c.id,
-                          courierBranchId: ranked[0]?.id || "",
+                          handoffMode: handoff,
+                          courierBranchId: handoff === "PVZ" ? ranked[0]?.id || "" : "",
                           preferredCourierId: c.code,
                         });
                       }}
@@ -793,15 +891,22 @@ export default function CheckoutPage() {
                           : "border-lf-border"
                       )}
                     >
-                      <div
-                        className={cn(
-                          "font-semibold",
-                          form.courierCompanyId === c.id && "text-lf-red"
+                      <div className="flex items-start justify-between gap-2">
+                        <div
+                          className={cn(
+                            "font-semibold",
+                            form.courierCompanyId === c.id && "text-lf-red"
+                          )}
+                        >
+                          {c.name}
+                        </div>
+                        {rec.recommended && (
+                          <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                            Tavsiya etiladi
+                          </span>
                         )}
-                      >
-                        {c.name}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-lf-muted">{c.shortDesc}</div>
+                      <div className="mt-0.5 text-[11px] text-lf-muted">{rec.reason}</div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-lf-muted">
                         <span>{c.coverage}</span>
                         {c.phone && <span>☎ {c.phone}</span>}
@@ -816,7 +921,7 @@ export default function CheckoutPage() {
                 })}
               </div>
 
-              {selectedCompany && (
+              {selectedCompany && form.handoffMode === "PVZ" && (
                 <div className="space-y-2 rounded-xl border border-lf-border bg-lf-bg/60 p-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.1em] text-lf-muted">
                     Filial / punkt — {selectedCompany.name}
@@ -868,6 +973,12 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               )}
+
+              {form.handoffMode === "HOME" && (
+                <p className="rounded-xl border border-lf-border bg-lf-bg/60 px-3 py-2 text-[11px] text-lf-muted">
+                  Uyga yetkazish: yuqoridagi manzilga kuryer keladi. Telefon ochiq bo‘lsin.
+                </p>
+              )}
             </div>
           )}
 
@@ -892,10 +1003,15 @@ export default function CheckoutPage() {
           )}
 
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 text-xs text-emerald-900">
-            <span className="font-semibold">Taxminiy yetkazish:</span>{" "}
+            {promisedByText && (
+              <div className="mb-1 text-sm font-bold text-emerald-950">
+                Kutiladi: {promisedByText} gacha
+              </div>
+            )}
+            <span className="font-semibold">Tafsilot:</span>{" "}
             {deliveryEta.replace(/^Taxminiy:\s*/i, "")}
             <span className="mt-0.5 block text-[11px] font-normal text-emerald-800/80">
-              Ish kunlari · ombordan jo‘natilgandan keyin · kafolat emas
+              Cutoff 15:00 (Toshkent) · ish kunlari · kafolat emas · bayramda o‘zgarishi mumkin
             </span>
           </div>
         </div>

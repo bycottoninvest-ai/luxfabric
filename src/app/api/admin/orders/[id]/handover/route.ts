@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
   courierId: z.string(),
-  tracking: z.string().optional(),
+  tracking: z.string().min(3, "Trek-kod majburiy"),
   note: z.string().optional(),
 });
 
-/** Ombordan kuryerga topshirish */
+/** Ombordan kuryerga topshirish — trek majburiy (SHIPPED). */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -25,12 +25,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
     if (!order) return NextResponse.json({ error: "Buyurtma topilmadi" }, { status: 404 });
 
-    const tracking =
-      body.tracking ||
-      `${courier.code}-${order.orderNumber.replace("LF-", "")}-${Date.now().toString().slice(-6)}`;
-
-    // Real API hook joyi (token bo‘lganda)
-    // await callCourierApi(courier, order)
+    const tracking = body.tracking.trim();
+    if (!tracking) {
+      return NextResponse.json({ error: "Trek-kod majburiy" }, { status: 400 });
+    }
 
     const updated = await prisma.order.update({
       where: { id },
@@ -40,14 +38,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         courierLabel: courier.nameUz,
         courierTracking: tracking,
         handedToCourierAt: new Date(),
-        status: "WITH_COURIER",
+        status: "SHIPPED",
         events: {
           create: {
-            status: "WITH_COURIER",
+            status: "SHIPPED",
             title: `${courier.nameUz} ga topshirildi`,
             note:
               body.note ||
-              `Ombor: ${order.warehouse?.name || "—"} · Trek: ${tracking} · Kuryer olib ketishi mumkin`,
+              `Ombor: ${order.warehouse?.name || "—"} · Trek: ${tracking}`,
           },
         },
       },

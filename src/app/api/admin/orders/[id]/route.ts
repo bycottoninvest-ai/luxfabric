@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { ORDER_FLOW } from "@/lib/utils";
+import { ORDER_STATUS } from "@/lib/utils";
 import { notifyDirector } from "@/lib/notify";
+import {
+  eventTitleForStatus,
+  normalizeStatus,
+  requiresTrackingForTransition,
+  validateTransition,
+} from "@/lib/fulfillment";
 
 const schema = z.object({
   status: z.string().optional(),
@@ -79,15 +85,32 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "status yoki warehouseId kerak" }, { status: 400 });
     }
 
-    const flow = ORDER_FLOW.find((f) => f.status === status);
-    const title = flow?.title || status;
-
     const order = await prisma.$transaction(async (tx) => {
       const current = await tx.order.findUnique({
         where: { id },
         include: { items: true },
       });
       if (!current) throw new Error("Buyurtma topilmadi");
+
+      const nextTracking =
+        body.courierTracking !== undefined
+          ? (body.courierTracking || "").trim() || null
+          : current.courierTracking;
+
+      const check = validateTransition(current.status, status, {
+        deliveryType: current.deliveryType,
+        paymentStatus: current.paymentStatus,
+        paymentMethod: current.paymentMethod,
+        courierTracking: nextTracking,
+      });
+      if (!check.ok) throw new Error(check.error);
+
+      if (
+        requiresTrackingForTransition(status, current.deliveryType) &&
+        !(nextTracking || "").trim()
+      ) {
+        throw new Error("SHIPPED uchun trek-kod majburiy");
+      }
 
       if (
         status === "CANCELLED" &&
@@ -119,29 +142,43 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         }
       }
 
+      const norm = normalizeStatus(status);
       const pickupReady =
-        status === "PACKED" && current.deliveryType === "PICKUP" && !body.note;
+        (norm === "READY_PICKUP" || (norm === "PACKED" && current.deliveryType === "PICKUP")) &&
+        !body.note;
+
+      const title =
+        norm === "READY_PICKUP"
+          ? "Olib ketishga tayyor"
+          : ORDER_STATUS[status]?.label || eventTitleForStatus(status, current.deliveryType);
+
       const defaultNote = pickupReady
         ? `Olib ketishga tayyor · xabar: ${current.notifyChannel}${
             current.telegramUsername ? ` · @${current.telegramUsername.replace(/^@/, "")}` : ""
           }`
         : status === "CANCELLED" && current.stockDeducted
           ? "Bekor · stock omborga qaytarildi"
-          : "Admin panel orqali yangilandi";
+          : status === "SHIPPED" && nextTracking
+            ? `Trek: ${nextTracking}`
+            : "Admin panel orqali yangilandi";
 
       return tx.order.update({
         where: { id },
         data: {
-          status,
+          status: norm === "WITH_COURIER" || norm === "ON_THE_WAY" ? "SHIPPED" : status,
           ...(body.warehouseId !== undefined ? { warehouseId: body.warehouseId } : {}),
           ...(body.courierTracking !== undefined
             ? { courierTracking: (body.courierTracking || "").trim() || null }
             : {}),
-          ...(status === "DELIVERED" ? { paymentStatus: "PAID" } : {}),
+          ...(norm === "SHIPPED" || status === "WITH_COURIER"
+            ? { handedToCourierAt: new Date() }
+            : {}),
+          ...(status === "PAID" ? { paymentStatus: "PAID" } : {}),
+          ...(status === "DELIVERED" || status === "DONE" ? { paymentStatus: "PAID" } : {}),
           ...(status === "CANCELLED" ? { stockDeducted: false } : {}),
           events: {
             create: {
-              status,
+              status: norm === "WITH_COURIER" || norm === "ON_THE_WAY" ? "SHIPPED" : status,
               title: pickupReady ? "Olib ketishga tayyor" : title,
               note: body.note || defaultNote,
             },
@@ -153,9 +190,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const event =
       status === "CANCELLED"
         ? "CANCELLED"
-        : status === "DELIVERED"
+        : status === "DELIVERED" || status === "DONE"
           ? "DELIVERED"
-          : status === "PACKED"
+          : status === "PACKED" || status === "READY_PICKUP"
             ? "PACKED"
             : "STATUS";
 

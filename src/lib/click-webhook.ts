@@ -140,18 +140,20 @@ export async function handleClickWebhook(req: Request, forcedAction?: 0 | 1) {
   }
 
   try {
+    const advanceToPaid = order.status === "NEW";
     await prisma.$transaction([
       prisma.order.update({
         where: { id: order.id },
         data: {
           paymentStatus: "PAID",
           clickTransId: body.click_trans_id,
+          ...(advanceToPaid ? { status: "PAID" } : {}),
         },
       }),
       prisma.trackingEvent.create({
         data: {
           orderId: order.id,
-          status: "NEW",
+          status: "PAID",
           title: "Click orqali to‘landi",
           note: `click_trans_id=${body.click_trans_id} · paydoc=${body.click_paydoc_id || "—"}`,
         },

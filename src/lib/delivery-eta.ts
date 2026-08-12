@@ -1,64 +1,59 @@
 /**
  * Realistik taxminiy yetkazish matnlari (O‘zbekiston).
  * Manba: docs/YETKAZISH-STRATEGIYA.md — yolg‘on «butun UZ 2 soat» yo‘q.
+ * Sana hisobi: delivery-promise.ts (cutoff 15:00 Toshkent).
  */
+import {
+  computeDeliveryPromise,
+  type HandoffMode,
+  type PromiseInput,
+} from "@/lib/delivery-promise";
+import { formatTashkentDate } from "@/lib/tashkent-time";
+import { shopDefaultCourierCode } from "@/lib/carrier-matrix";
 
 export type DeliveryEtaInput = {
   regionCode: string;
   deliveryType: "SHOP_DELIVERY" | "COURIER_CHOICE" | "PICKUP";
   /** uz-couriers id yoki code (bts, YANDEX, …) */
   courierKey?: string | null;
+  handoffMode?: HandoffMode | null;
 };
 
-/** Uzoq zona: BTS ham odatda 2 kun (Xorazm, Surxon, Qoraqalpog‘iston). */
-const FAR_REGIONS = new Set(["XOR", "SUR", "QQR"]);
-
-function normalizeCourier(key?: string | null): string {
-  return (key || "").trim().toUpperCase();
+function toPromiseInput(input: DeliveryEtaInput): PromiseInput {
+  const courierKey =
+    input.courierKey ||
+    (input.deliveryType === "SHOP_DELIVERY"
+      ? shopDefaultCourierCode(input.regionCode)
+      : null);
+  return {
+    regionCode: input.regionCode,
+    deliveryType: input.deliveryType,
+    courierKey,
+    handoffMode: input.handoffMode,
+  };
 }
 
 /**
- * Checkout / tracking uchun qisqa ETA.
- * Cutoff: ish kunlari 15:00 — matnda eslatiladi.
+ * Checkout / tracking uchun ETA + promisedBy matni.
  */
 export function estimateDeliveryLabel(input: DeliveryEtaInput): string {
-  const { regionCode, deliveryType } = input;
-  const region = (regionCode || "TAS").toUpperCase();
-  const courier = normalizeCourier(input.courierKey);
-  const far = FAR_REGIONS.has(region);
-  const tashkent = region === "TAS";
-
-  if (deliveryType === "PICKUP") {
-    return tashkent
-      ? "Taxminiy: bugun yoki ertaga ombordan olishingiz mumkin (tayyor bo‘lgach)"
-      : "Taxminiy: Toshkent omboridan olib ketish — kelishuv bo‘yicha";
-  }
-
-  if (courier === "YANDEX" || courier === "YANDEX_DELIVERY") {
-    if (tashkent) {
-      return "Taxminiy: bugun, 1–4 soat (cutoff 15:00; keyin — ertangi ish kuni)";
-    }
-    return "Taxminiy: 1–3 ish kuni (Yandex qamrovi cheklangan bo‘lishi mumkin)";
-  }
-
-  if (courier === "UZPOST" || courier === "EMS") {
-    return far
-      ? "Taxminiy: 3–5 ish kuni (pochta)"
-      : "Taxminiy: 2–5 ish kuni (pochta)";
-  }
-
-  // BTS / Fargo / DPD / Tezbor / shop-ships default
-  if (tashkent) {
-    return "Taxminiy: 1 ish kuni (cutoff 15:00 — shu kun jo‘natiladi)";
-  }
-  if (far) {
-    return "Taxminiy: 2–3 ish kuni (Xorazm/Surxon/QQR — cutoff 15:00)";
-  }
-  return "Taxminiy: 1–2 ish kuni (cutoff 15:00)";
+  const promise = computeDeliveryPromise(toPromiseInput(input));
+  return `Taxminiy: ${promise.label.replace(/^Kutiladi:\s*/i, "").replace(/^Olib ketish:\s*/i, "olib ketish — ")}`;
 }
 
 /** Tracking sahifasi uchun qisqaroq variant. */
 export function estimateDeliveryShort(input: DeliveryEtaInput): string {
   const full = estimateDeliveryLabel(input);
   return full.replace(/^Taxminiy:\s*/i, "");
+}
+
+export function estimatePromisedBy(input: DeliveryEtaInput): Date {
+  return computeDeliveryPromise(toPromiseInput(input)).promisedBy;
+}
+
+export function formatPromisedByLabel(date: Date | string | null | undefined): string | null {
+  if (!date) return null;
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return null;
+  return formatTashkentDate(d);
 }
