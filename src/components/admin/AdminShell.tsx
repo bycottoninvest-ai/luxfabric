@@ -47,11 +47,21 @@ const mobileLinks = [
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isLogin = pathname === "/admin/login";
   const isCameraPage =
     pathname === "/admin/chiqim" ||
     pathname?.startsWith("/admin/chiqim/") ||
     pathname === "/admin/scan" ||
     pathname?.startsWith("/admin/scan/");
+
+  async function logout() {
+    await fetch("/api/admin/auth/logout", { method: "POST" });
+    window.location.href = "/admin/login";
+  }
+
+  if (isLogin) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="admin-root min-h-screen bg-[#070707] text-white">
@@ -125,6 +135,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <div className="hidden rounded-full bg-white/5 px-3 py-1 text-xs text-white/50 lg:block">
                 admin@luxfabricshop.uz
               </div>
+              <button
+                type="button"
+                onClick={logout}
+                className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/55 hover:text-white"
+              >
+                Chiqish
+              </button>
             </div>
           </header>
 

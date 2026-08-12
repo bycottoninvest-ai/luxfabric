@@ -1,6 +1,16 @@
 import { PrismaClient } from "@prisma/client";
+import { randomBytes, scryptSync } from "node:crypto";
 
 const prisma = new PrismaClient();
+
+function hashPassword(password: string): string {
+  const N = 16384;
+  const r = 8;
+  const p = 1;
+  const salt = randomBytes(16);
+  const hash = scryptSync(password, salt, 32, { N, r, p });
+  return `scrypt$${N}$${r}$${p}$${salt.toString("hex")}$${hash.toString("hex")}`;
+}
 
 /** O‘zbekiston: Toshkent shahar (markaz) + 12 viloyat + Qoraqalpog‘iston */
 export const UZ_REGIONS = [
@@ -229,14 +239,18 @@ async function main() {
     }
   }
 
+  const adminPassword = process.env.ADMIN_PASSWORD?.trim() || "demo";
   await prisma.adminUser.create({
     data: {
       email: "admin@luxfabricshop.uz",
       name: "Luxfabric Admin",
-      passwordHash: "demo",
+      passwordHash: hashPassword(adminPassword),
       role: "ADMIN",
     },
   });
+  console.log(
+    `[seed] admin: admin@luxfabricshop.uz (parol: ${process.env.ADMIN_PASSWORD ? "ADMIN_PASSWORD" : "demo"})`
+  );
 
   const defaults: Record<string, string> = {
     app_domain: "https://luxfabricshop.uz",
