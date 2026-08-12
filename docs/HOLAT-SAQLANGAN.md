@@ -118,6 +118,24 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 
 ---
 
+## Instagram «Sotib olish» — Meta haqiqati (2026-08-13)
+
+**Muhim:** uchinchi tomon ilova Instagram Feed/Reels UI da qizil «SOTIB OLISH» overlay chiza **olmaydi**. Bu Meta cheklovi.
+
+| Usul | Holat |
+|------|--------|
+| Captionda CTA + URL (yuqorida) | ✓ Admin publish |
+| Birinchi izoh `POST /{media-id}/comments` | ✓ Admin publish (IG Login: `instagram_business_manage_comments`) |
+| Sayt `/instagram` qizil tugma | ✓ doim |
+| Product / shopping tag | ❌ Instagram Login bilan yo‘q; Facebook Login + tasdiqlangan Instagram Shop + katalog |
+| Post CTA tugma (Shop Now native) | ❌ Graph orqali Feed/Reels ga qo‘yilmaydi |
+| Story link sticker | ❌ API qo‘llab-quvvatlamaydi — faqat IG app qo‘lda |
+| Telefon IG appdan qo‘lda joylash | Bizning avto caption/izoh **ishlamaydi** — Admin «Instagramga joylash» kerak |
+
+Kod: `ig-caption.ts` (CTA yuqoriga), `instagram-graph.ts` (`commentOnInstagramMediaWithRetry`), publish route. Mahsulot stub: `Product.metaCatalogProductId` + Meta/DM da «Katalog ID».
+
+---
+
 ## Instagram tez xarid + sharhlar + AI (2026-08-13)
 
 ### A) Bir-bosishda sotib olish
@@ -150,7 +168,9 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - [ ] Telefon/ISP da domen ochilishini tasdiqlash
 - [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy — AI izoh/sharh uchun)
 - [ ] Webhook Meta dashboardda **comments** field + yakuniy tasdiq
-- [ ] Birinchi real Reel joylash
+- [x] Admin publish: caption CTA yuqorida + avto birinchi izoh
+- [ ] Birinchi real Reel **Admin orqali** qayta joylash (izohni tekshirish)
+- [ ] (Ixtiyoriy) Instagram Shop / Commerce — product tag
 - [ ] Neon parol Reset (xavfsizlik)
 - [ ] Buyurtma/SMS/to‘lov oqimi tekshiruvi
 - [ ] Monitoring

@@ -7,9 +7,15 @@ import {
   publishStoryToInstagram,
   testInstagramConnection,
   resolveIgUserId,
+  commentOnInstagramMediaWithRetry,
+  tryTagProductsOnMedia,
 } from "@/lib/instagram-graph";
 import { getSetting, setSettings } from "@/lib/settings";
-import { buildIgPublishCaption, productBuyUrl } from "@/lib/ig-caption";
+import {
+  buildIgFirstComment,
+  buildIgPublishCaption,
+  productBuyUrl,
+} from "@/lib/ig-caption";
 
 export async function GET(req: Request) {
   const action = new URL(req.url).searchParams.get("action") || "status";
@@ -66,7 +72,10 @@ export async function POST(req: Request) {
     if (body.type === "reel") {
       const reel = await prisma.instagramReel.findUnique({
         where: { id: body.id },
-        include: { product: { select: { slug: true, name: true } }, music: true },
+        include: {
+          product: { select: { slug: true, name: true, metaCatalogProductId: true } },
+          music: true,
+        },
       });
       if (!reel) return NextResponse.json({ error: "Reel topilmadi" }, { status: 404 });
 
@@ -77,10 +86,11 @@ export async function POST(req: Request) {
           : reel.product
             ? productBuyUrl(null, reel.product.slug)
             : null;
+      const buyLabel = reel.buyButtonLabel || "Sotib olish";
       const caption = buildIgPublishCaption({
         caption: reel.caption || reel.title,
         buyUrl,
-        buyLabel: reel.buyButtonLabel || "Sotib olish",
+        buyLabel,
       });
 
       const published = await publishReelToInstagram({
@@ -107,17 +117,54 @@ export async function POST(req: Request) {
         );
       }
 
+      let firstComment: { ok: boolean; commentId?: string; error?: string } | null = null;
+      if (buyUrl) {
+        try {
+          const c = await commentOnInstagramMediaWithRetry(
+            published.mediaId,
+            buildIgFirstComment({ buyUrl, buyLabel })
+          );
+          firstComment = { ok: true, commentId: c.commentId };
+        } catch (e) {
+          firstComment = {
+            ok: false,
+            error: e instanceof Error ? e.message : "Izoh yozilmadi",
+          };
+        }
+      }
+
+      let productTag: { ok: boolean; error?: string } | null = null;
+      const catalogId = reel.product?.metaCatalogProductId?.trim();
+      if (catalogId) {
+        productTag = await tryTagProductsOnMedia(published.mediaId, [catalogId], {
+          x: 0.5,
+          y: 0.85,
+        });
+      }
+
+      const commentHint = firstComment?.ok
+        ? " Birinchi izohda «Sotib olish» havolasi bor — postda Izohlar ni oching."
+        : firstComment
+          ? ` Izoh yozilmadi: ${firstComment.error}`
+          : "";
+
       return NextResponse.json({
         ok: true,
         type: "reel",
         mediaId: published.mediaId,
-        message: "Reel Instagramga joylandi ✓",
+        captionPreview: caption.slice(0, 180),
+        buyUrl: buyUrl || undefined,
+        firstComment,
+        productTag,
+        message: `Reel Instagramga joylandi ✓ (feed/Публикации + Reels).${commentHint}`,
+        note:
+          "Instagram ilovasida qizil «SOTIB OLISH» overlay chizib bo‘lmaydi (Meta cheklovi). Qizil tugma — saytda /instagram. Telefondan qo‘lda joylasangiz — avto izoh/CTA ishlamaydi; Admin → Instagramga joylash kerak.",
       });
     }
 
     const story = await prisma.instagramStory.findUnique({
       where: { id: body.id },
-      include: { product: { select: { slug: true } } },
+      include: { product: { select: { slug: true, metaCatalogProductId: true } } },
     });
     if (!story) return NextResponse.json({ error: "Story topilmadi" }, { status: 404 });
 
@@ -155,6 +202,8 @@ export async function POST(req: Request) {
       message:
         "Story Instagramga joylandi ✓ (Meta Graph link sticker bermaydi — havolani Storyda qo‘lda qo‘shing yoki bio/link ishlating)",
       tip: storyBuyUrl || undefined,
+      note:
+        "Storyda izoh yo‘q. Link sticker faqat Instagram ilovasida qo‘lda. Sayt preview: /instagram/story/…",
     });
   } catch (err) {
     const message =

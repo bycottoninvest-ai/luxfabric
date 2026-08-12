@@ -63,7 +63,7 @@ export function StoriesManager({
     if (!title.trim()) setTitle(p.name);
     if (!caption.trim()) {
       setCaption(
-        `${p.name} — ${formatSom(p.price)}.\n\n👇 Sotib olish\n\n(Meta Storyda link sticker qo‘lda; sayt previewda tugma ishlaydi)`
+        `${p.name} — ${formatSom(p.price)}.\n\n👇 Sotib olish\n\n(Meta API link sticker bermaydi — Storyda qo‘lda; sayt /instagram/story da qizil tugma)`
       );
     }
   }

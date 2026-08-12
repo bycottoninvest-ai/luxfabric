@@ -37,7 +37,9 @@ model Product {
   orderItems  OrderItem[]
   reels       InstagramReel[]
   stories     InstagramStory[]
-  reviews     Review[]
+  reviews              Review[]
+  /// Meta Commerce catalog product id (Instagram Shopping). Needs Facebook Login + Shop approval.
+  metaCatalogProductId String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 }

@@ -20,18 +20,25 @@ export function productBuyUrl(domain: string | null | undefined, slug: string): 
   return `${publicShopOrigin(domain)}/i/${slug}`;
 }
 
-/** Eski shablon oxiridagi «Sotib olish» qatorlarini olib tashlash (URL publishda qo‘shiladi). */
-function stripTrailingBuyCta(text: string): string {
-  return text
-    // emoji + «Sotib olish» (+ ixtiyoriy URL) oxirida
+/** Captiondagi eski «Sotib olish» / buy URL qatorlarini tozalash (qayta joylash uchun). */
+function stripBuyCtaAndUrl(text: string, buyUrl?: string | null): string {
+  let t = (text || "").trim();
+  // oxiridagi CTA
+  t = t
     .replace(/(?:\r?\n|\s)*(?:🛒|👇)\uFE0F?\s*Sotib olish(?:\s*:\s*\S+)?\s*[.…]?\s*$/giu, "")
-    .replace(/(?:\r?\n|\s)*Sotib olish(?:\s*:\s*https?:\/\/\S+)?\s*[.…]?\s*$/giu, "")
-    .trim();
+    .replace(/(?:\r?\n|\s)*Sotib olish(?:\s*:\s*https?:\/\/\S+)?\s*[.…]?\s*$/giu, "");
+  // butun qator CTA (o‘rtada ham)
+  t = t.replace(/^(?:🛒|👇)\uFE0F?\s*Sotib olish(?:\s*:\s*\S+)?\s*[.….]?\s*$/gimu, "");
+  t = t.replace(/^Sotib olish(?:\s*:\s*https?:\/\/\S+)?\s*[.….]?\s*$/gimu, "");
+  if (buyUrl?.trim()) {
+    t = t.split(buyUrl.trim()).join("");
+  }
+  return t.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /**
  * Hook (1–2 qator) → Sotib olish + HTTPS URL → qolgan matn.
- * URL allaqachon caption ichida bo‘lsa, qayta qo‘shilmaydi.
+ * URL allaqachon caption ichida bo‘lsa ham CTA yuqoriga ko‘chiriladi.
  */
 export function buildIgPublishCaption(opts: {
   caption: string;
@@ -40,13 +47,9 @@ export function buildIgPublishCaption(opts: {
 }): string {
   const label = (opts.buyLabel || "Sotib olish").trim() || "Sotib olish";
   const buyUrl = (opts.buyUrl || "").trim();
-  let body = stripTrailingBuyCta((opts.caption || "").trim());
+  let body = stripBuyCtaAndUrl(opts.caption || "", buyUrl);
 
   if (!buyUrl) return body.slice(0, 2200);
-
-  if (body.includes(buyUrl)) {
-    return body.slice(0, 2200);
-  }
 
   const ctaLine = `🛒 ${label}: ${buyUrl}`;
   const paragraphs = body.split(/\n+/).map((p) => p.trim()).filter(Boolean);
@@ -78,6 +81,16 @@ export function buildIgPublishCaption(opts: {
 
   const parts = [head, ctaLine, rest].filter(Boolean);
   return parts.join("\n\n").slice(0, 2200);
+}
+
+/** Publishdan keyin birinchi izoh — qisqa, bosiladigan URL. */
+export function buildIgFirstComment(opts: {
+  buyUrl: string;
+  buyLabel?: string;
+}): string {
+  const label = (opts.buyLabel || "Sotib olish").trim() || "Sotib olish";
+  const url = opts.buyUrl.trim();
+  return `🛒 ${label}: ${url}`.slice(0, 800);
 }
 
 /** AI/shablon caption: hook + CTA chorlovi yuqorida, rang/o‘lcham pastda. */

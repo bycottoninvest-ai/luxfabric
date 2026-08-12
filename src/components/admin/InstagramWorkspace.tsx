@@ -14,6 +14,7 @@ type FeaturedProduct = {
   name: string;
   slug: string;
   priceLabel: string;
+  metaCatalogProductId?: string | null;
 };
 
 export function InstagramWorkspace({
@@ -50,6 +51,12 @@ export function InstagramWorkspace({
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">Instagram boshqaruv</h1>
         <p className="mt-1 text-sm text-white/60">
           Avval nima qo‘ymoqchisiz — Reels yoki Stories — tanlang. Meta/DM alohida.
+        </p>
+        <p className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-100/90">
+          Instagram appda qizil «SOTIB OLISH» tugma chizib bo‘lmaydi (Meta cheklovi). Bizning{" "}
+          <span className="text-white">/instagram</span> da qizil tugma bor. Haqiqiy IG postda: caption
+          CTA + Admin «Instagramga joylash» dan keyin birinchi izoh. Shopping teg — alohida Commerce
+          tasdiqi.
         </p>
       </div>
 

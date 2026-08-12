@@ -327,6 +327,91 @@ export async function sendInstagramDm(recipientId: string, text: string) {
 }
 
 /**
+ * O‘z mediaiga izoh (birinchi «Sotib olish» izohi).
+ * POST /{ig-media-id}/comments — Instagram Login: instagram_business_manage_comments.
+ */
+export async function commentOnInstagramMedia(mediaId: string, message: string) {
+  const { pageToken, graphBase } = await getIgCredentials();
+  const params = new URLSearchParams({
+    message: message.slice(0, 800),
+    access_token: pageToken,
+  });
+  const res = await fetch(`${graphBase}/${mediaId}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const data = (await res.json()) as { id?: string; error?: { message?: string; code?: number } };
+  if (!res.ok || data.error || !data.id) {
+    throw new IgPublishError(data.error?.message || "Birinchi izoh yozilmadi");
+  }
+  return { commentId: data.id };
+}
+
+/** Publishdan keyin media biroz kechikishi mumkin — 3 marta urinib ko‘radi. */
+export async function commentOnInstagramMediaWithRetry(
+  mediaId: string,
+  message: string,
+  attempts = 3
+) {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 2000 * i));
+    try {
+      return await commentOnInstagramMedia(mediaId, message);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new IgPublishError("Birinchi izoh yozilmadi");
+}
+
+/**
+ * Shopping product tag (faqat Facebook Login + tasdiqlangan Instagram Shop + katalog).
+ * Instagram Login token bilan Meta API product tagging bermaydi — chaqirmang.
+ * Soft-fail: xato tashlamaydi, { ok: false } qaytaradi.
+ */
+export async function tryTagProductsOnMedia(
+  mediaId: string,
+  productIds: string[],
+  coords?: { x?: number; y?: number }
+): Promise<{ ok: boolean; error?: string }> {
+  if (!productIds.length) return { ok: false, error: "product_id yo‘q" };
+  try {
+    const { pageToken, graphBase } = await getIgCredentials();
+    if (graphBase.includes("graph.instagram.com")) {
+      return {
+        ok: false,
+        error:
+          "Product tag faqat Facebook Login + Instagram Shop (Commerce) bilan. Hozirgi Instagram Login token yetarli emas.",
+      };
+    }
+    const updated_tags = JSON.stringify(
+      productIds.slice(0, 20).map((product_id) => ({
+        product_id,
+        ...(coords?.x != null && coords?.y != null ? { x: coords.x, y: coords.y } : {}),
+      }))
+    );
+    const params = new URLSearchParams({
+      updated_tags,
+      access_token: pageToken,
+    });
+    const res = await fetch(`${graphBase}/${mediaId}/product_tags`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    const data = (await res.json()) as { success?: boolean; error?: { message?: string } };
+    if (!res.ok || data.error) {
+      return { ok: false, error: data.error?.message || "product_tags xatosi" };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "product_tags xatosi" };
+  }
+}
+
+/**
  * Instagram izohga javob (Graph: POST /{comment-id}/replies).
  * Page yoki IG Login token + comments ruxsati kerak.
  */

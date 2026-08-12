@@ -385,7 +385,11 @@ export function ReelsManager({
             : r
         )
       );
-      setMsg(data.message || "Reel Instagramga joylandi ✓");
+      const bits = [data.message || "Reel Instagramga joylandi ✓"];
+      if (data.firstComment?.ok) bits.push("Birinchi izoh ✓ — IG da «Izohlar»ni oching.");
+      else if (data.firstComment?.error) bits.push(`Izoh: ${data.firstComment.error}`);
+      if (data.buyUrl) bits.push(data.buyUrl);
+      setMsg(bits.join(" "));
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Publish xatosi");
@@ -632,17 +636,22 @@ export function ReelsManager({
         <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={showBuy} onChange={(e) => setShowBuy(e.target.checked)} />
-            «Sotib olish» / Shop Now tugmasini qo‘yish
+            «Sotib olish» (sayt /instagram qizil tugma + caption + birinchi izoh)
           </label>
           {showBuy && (
             <div className="space-y-2">
+              <p className="text-[11px] leading-relaxed text-white/50">
+                Instagram ilovasida qizil overlay tugma Meta tomonidan yopiq. Admin orqali joylasangiz:
+                captionda CTA + avtomatik birinchi izoh (havola). Telefondan qo‘lda joylasangiz — kod
+                ishlamaydi.
+              </p>
               {!productId && (
                 <p className="text-[11px] text-amber-300/90">
-                  Mahsulot tanlanmagan — tugma ishlashi uchun yuqoridan modelni tanlang.
+                  Mahsulot tanlanmagan — yuqoridan modelni tanlang.
                 </p>
               )}
               <label className="block space-y-1.5">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Tugma matni</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Tugma / izoh matni</span>
                 <input
                   value={buyLabel}
                   onChange={(e) => setBuyLabel(e.target.value)}

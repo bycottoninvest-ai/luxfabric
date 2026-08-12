@@ -10,6 +10,7 @@ type Product = {
   name: string;
   slug: string;
   priceLabel: string;
+  metaCatalogProductId?: string | null;
 };
 
 export function InstagramPanel({
@@ -29,6 +30,10 @@ export function InstagramPanel({
   const [copied, setCopied] = useState("");
   const [testMsg, setTestMsg] = useState("");
   const [testing, setTesting] = useState(false);
+  const [catalogDraft, setCatalogDraft] = useState<Record<string, string>>(() =>
+    Object.fromEntries(products.map((p) => [p.id, p.metaCatalogProductId || ""]))
+  );
+  const [catalogMsg, setCatalogMsg] = useState("");
 
   useEffect(() => {
     const ok = searchParams.get("oauth");
@@ -74,6 +79,26 @@ export function InstagramPanel({
   async function toggleEnabled() {
     const next = enabled ? "false" : "true";
     await save({ instagram_enabled: next });
+  }
+
+  async function saveCatalogId(productId: string) {
+    setCatalogMsg("");
+    try {
+      const res = await fetch("/api/admin/products/meta-catalog", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId,
+          metaCatalogProductId: catalogDraft[productId] || "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Saqlash xatosi");
+      setCatalogMsg("Katalog ID saqlandi ✓ (Shopping ochilganda tag uriniladi)");
+      router.refresh();
+    } catch (e) {
+      setCatalogMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Saqlash xatosi");
+    }
   }
 
   async function testConnection() {
@@ -259,30 +284,70 @@ export function InstagramPanel({
           <h2 className="font-semibold">3. Shop Now mahsulot havolalari</h2>
           <div className="space-y-2">
             {products.map((p) => {
-              const link = `${storeBase}/product/${p.slug}?from=instagram`;
+              const link = `${storeBase}/i/${p.slug}?from=instagram`;
               return (
                 <div
                   key={p.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/5 px-3 py-2.5 text-sm"
+                  className="space-y-2 rounded-xl border border-white/5 px-3 py-2.5 text-sm"
                 >
-                  <div>
-                    <div className="font-medium">{p.name}</div>
-                    <div className="text-xs text-white/45">{p.priceLabel}</div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{p.name}</div>
+                      <div className="text-xs text-white/45">{p.priceLabel}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="max-w-[220px] truncate text-[11px] text-white/50">{link}</code>
+                      <button
+                        type="button"
+                        onClick={() => copyText(link, p.id)}
+                        className="rounded-lg bg-white/10 px-2 py-1 text-[11px]"
+                      >
+                        {copied === p.id ? "OK" : "Nusxa"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <code className="max-w-[220px] truncate text-[11px] text-white/50">{link}</code>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={catalogDraft[p.id] ?? ""}
+                      onChange={(e) =>
+                        setCatalogDraft((d) => ({ ...d, [p.id]: e.target.value }))
+                      }
+                      placeholder="Meta catalog product_id (ixtiyoriy)"
+                      className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[11px] outline-none ring-lf-red focus:ring-1"
+                    />
                     <button
                       type="button"
-                      onClick={() => copyText(link, p.id)}
+                      onClick={() => saveCatalogId(p.id)}
                       className="rounded-lg bg-white/10 px-2 py-1 text-[11px]"
                     >
-                      {copied === p.id ? "OK" : "Nusxa"}
+                      Katalog ID
                     </button>
                   </div>
                 </div>
               );
             })}
           </div>
+          {catalogMsg && (
+            <p className={`text-xs ${catalogMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}>
+              {catalogMsg}
+            </p>
+          )}
+        </section>
+
+        <section className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
+          <h2 className="font-semibold text-white">3b. Instagram Shopping / product tag (keyingi bosqich)</h2>
+          <p className="text-xs leading-relaxed text-white/55">
+            Postdagi mahsulot «teg» (shopping tag) uchun: tasdiqlangan Instagram Shop + Commerce Manager
+            katalog + Facebook Login +{" "}
+            <code className="text-white/80">instagram_shopping_tag_products</code>. Hozirgi Instagram Login
+            token bilan product tagging API ishlamaydi. Mahsulotda{" "}
+            <code className="text-white/80">metaCatalogProductId</code> maydoni tayyor — katalog ID
+            qo‘yilganda (va Shop ochilganda) publish urinadi.
+          </p>
+          <p className="text-xs text-amber-200/80">
+            Hozir ishlaydi: caption CTA + birinchi izoh (Admin «Instagramga joylash»). Ishlamaydi: IG
+            appda qizil overlay tugma, Story link-sticker API, telefon orqali qo‘lda joylashda avto-izoh.
+          </p>
         </section>
 
         <section className="rounded-2xl border border-lf-red/30 bg-lf-red/10 p-4 text-sm text-white/75">
@@ -291,28 +356,27 @@ export function InstagramPanel({
             <li>Instagram Professional (Business/Creator) + Facebook Page bog‘langan</li>
             <li>
               developers.facebook.com → App → Instagram Graph API / Messenger; ruxsatlar:{" "}
-              <code className="text-[11px] text-white/90">instagram_basic</code>,{" "}
-              <code className="text-[11px] text-white/90">instagram_content_publish</code>,{" "}
-              <code className="text-[11px] text-white/90">pages_messaging</code> /{" "}
-              <code className="text-[11px] text-white/90">instagram_manage_messages</code>
+              <code className="text-[11px] text-white/90">instagram_business_content_publish</code>,{" "}
+              <code className="text-[11px] text-white/90">instagram_business_manage_comments</code>,{" "}
+              <code className="text-[11px] text-white/90">instagram_business_manage_messages</code>
             </li>
             <li>
               Webhook: <span className="text-white">{webhook}</span> · verify token yuqoridagi bilan bir xil ·
               fields: messages, <span className="text-white">comments</span>
             </li>
-            <li>Page Access Token ni yozing → «Ulanishni tekshirish» → «Instagramni yoqish»</li>
+            <li>Page Access Token / IG Login token → «Ulanishni tekshirish» → «Instagramni yoqish»</li>
             <li>
               <strong className="text-white">app_domain</strong> = public HTTPS (Meta video/rasmni shu yerda
               o‘qiydi). Localhostda publish ishlamaydi — ngrok yoki prod domen.
             </li>
             <li>
               Reels / Stories ro‘yxatida <strong className="text-white">«Instagramga joylash»</strong> — haqiqiy
-              akkauntga post
+              akkauntga post + avtomatik birinchi izoh
             </li>
           </ol>
           <p className="mt-2 text-xs text-white/50">
             Eslatma: Story link-sticker Meta API orqali qo‘yilmaydi — video/rasm joylanadi, mahsulot havolasini
-            Storyda qo‘lda yoki bio orqali berasiz.
+            Storyda qo‘lda yoki bio orqali berasiz. Qizil «Sotib olish» — saytda /instagram.
           </p>
         </section>
 

@@ -11,7 +11,7 @@ export default async function AdminInstagramPage() {
       where: { status: "ACTIVE" },
       orderBy: { updatedAt: "desc" },
       take: 100,
-      select: { id: true, name: true, slug: true, price: true },
+      select: { id: true, name: true, slug: true, price: true, metaCatalogProductId: true },
     }),
     getSettings([
       "app_domain",
@@ -84,6 +84,7 @@ export default async function AdminInstagramPage() {
           name: p.name,
           slug: p.slug,
           priceLabel: formatSom(p.price),
+          metaCatalogProductId: p.metaCatalogProductId ?? null,
         }))}
         metaInitial={initial}
         domain={domain}
