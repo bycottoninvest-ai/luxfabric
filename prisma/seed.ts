@@ -1,7 +1,42 @@
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, scryptSync } from "node:crypto";
+import { UZ_COURIERS } from "../src/lib/couriers";
 
 const prisma = new PrismaClient();
+
+async function ensureCouriers() {
+  for (const c of UZ_COURIERS) {
+    await prisma.courierPartner.upsert({
+      where: { code: c.code },
+      update: {
+        name: c.name,
+        nameUz: c.nameUz,
+        phone: c.phone,
+        website: c.website,
+        apiBaseUrl: c.apiBaseUrl,
+        supportsCod: c.supportsCod,
+        notes: c.notes,
+        sortOrder: c.sortOrder,
+        isActive: true,
+        coverage: "UZ",
+      },
+      create: {
+        code: c.code,
+        name: c.name,
+        nameUz: c.nameUz,
+        phone: c.phone,
+        website: c.website,
+        apiBaseUrl: c.apiBaseUrl,
+        supportsCod: c.supportsCod,
+        notes: c.notes,
+        sortOrder: c.sortOrder,
+        isActive: true,
+        coverage: "UZ",
+      },
+    });
+  }
+  console.log(`[seed] couriers: ${await prisma.courierPartner.count()}`);
+}
 
 function hashPassword(password: string): string {
   const N = 16384;
@@ -33,6 +68,8 @@ export const UZ_REGIONS = [
 const sizes = ["S", "M", "L", "XL", "XXL"];
 
 async function main() {
+  await ensureCouriers();
+
   const existing = await prisma.product.count();
   if (existing > 0 && process.env.FORCE_SEED !== "1") {
     console.log(

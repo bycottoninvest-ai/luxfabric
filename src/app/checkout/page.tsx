@@ -6,6 +6,13 @@ import { StoreShell } from "@/components/StoreShell";
 import { useCart } from "@/lib/cart";
 import { cn, formatSom, isValidUzPhone, maskUzPhone } from "@/lib/utils";
 import { UZ_REGIONS, formatCityLabel, getRegionByCode, matchUzFromGeoText } from "@/lib/uzbekistan-regions";
+import {
+  UZ_COURIER_COMPANIES,
+  formatBranchLabel,
+  sortBranchesByRegion,
+  type UzCourierBranch,
+  type UzCourierCompany,
+} from "@/lib/uz-couriers";
 
 const payments = [
   { id: "CLICK", label: "Click" },
@@ -67,14 +74,13 @@ function getContactsManager(): ContactsManager | null {
   return nav.contacts;
 }
 
-type Courier = { id: string; code: string; nameUz: string; name: string; notes: string | null };
 type Pickup = {
   id: string;
   name: string;
   city: string;
   address: string;
   phone: string | null;
-  region: { nameUz: string };
+  region: { nameUz: string; code?: string };
 };
 
 type CheckoutForm = {
@@ -85,6 +91,9 @@ type CheckoutForm = {
   address: string;
   paymentMethod: string;
   deliveryType: "SHOP_DELIVERY" | "COURIER_CHOICE" | "PICKUP";
+  /** uz-couriers company id (bts, fargo, …) */
+  courierCompanyId: string;
+  courierBranchId: string;
   preferredCourierId: string;
   pickupWarehouseId: string;
   notifyChannel: "SMS" | "TELEGRAM" | "BOTH" | "NONE";
@@ -109,6 +118,8 @@ function saveCustomerDraft(data: {
   notifyChannel: string;
   telegramUsername: string;
   preferredCourierId: string;
+  courierCompanyId?: string;
+  courierBranchId?: string;
 }) {
   try {
     localStorage.setItem(CUSTOMER_KEY, JSON.stringify(data));
@@ -132,7 +143,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
-  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [courierCatalog] = useState<UzCourierCompany[]>(() => [...UZ_COURIER_COMPANIES]);
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [locating, setLocating] = useState(false);
   const [pickingContact, setPickingContact] = useState(false);
@@ -155,6 +166,8 @@ export default function CheckoutPage() {
     address: "",
     paymentMethod: "CLICK",
     deliveryType: "SHOP_DELIVERY",
+    courierCompanyId: "",
+    courierBranchId: "",
     preferredCourierId: "",
     pickupWarehouseId: "",
     notifyChannel: "SMS",
@@ -164,6 +177,15 @@ export default function CheckoutPage() {
   const districts = useMemo(() => getRegionByCode(form.regionCode)?.districts || [], [form.regionCode]);
   const regionName = getRegionByCode(form.regionCode)?.name || "";
   const cityLabel = formatCityLabel(regionName, form.district);
+  const selectedCompany = useMemo(
+    () => courierCatalog.find((c) => c.id === form.courierCompanyId) || null,
+    [courierCatalog, form.courierCompanyId]
+  );
+  const sortedBranches = useMemo(() => {
+    if (!selectedCompany) return [] as UzCourierBranch[];
+    return sortBranchesByRegion(selectedCompany.branches, form.regionCode);
+  }, [selectedCompany, form.regionCode]);
+  const selectedBranch = sortedBranches.find((b) => b.id === form.courierBranchId) || null;
 
   useEffect(() => {
     setMounted(true);
@@ -185,6 +207,11 @@ export default function CheckoutPage() {
           notifyChannel: (saved.notifyChannel as CheckoutForm["notifyChannel"]) || f.notifyChannel,
           telegramUsername: saved.telegramUsername || f.telegramUsername,
           preferredCourierId: saved.preferredCourierId || f.preferredCourierId,
+          courierCompanyId:
+            (saved as { courierCompanyId?: string }).courierCompanyId ||
+            saved.preferredCourierId ||
+            f.courierCompanyId,
+          courierBranchId: (saved as { courierBranchId?: string }).courierBranchId || f.courierBranchId,
         };
         if (saved.city && !saved.regionCode) next = applyCityToForm(saved.city, next);
         return next;
@@ -201,7 +228,6 @@ export default function CheckoutPage() {
     fetch("/api/delivery-options")
       .then((r) => r.json())
       .then((d) => {
-        setCouriers(d.couriers || []);
         setPickups(d.pickups || []);
         if (d.pickups?.[0]?.id) {
           setForm((f) => ({ ...f, pickupWarehouseId: f.pickupWarehouseId || d.pickups[0].id }));
@@ -209,6 +235,17 @@ export default function CheckoutPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Viloyat o‘zgaganda: shu viloyatdagi birinchi punktni avtomatik belgilash
+  useEffect(() => {
+    if (form.deliveryType !== "COURIER_CHOICE" || !selectedCompany) return;
+    const ranked = sortBranchesByRegion(selectedCompany.branches, form.regionCode);
+    if (!ranked.length) return;
+    const stillValid = ranked.some((b) => b.id === form.courierBranchId);
+    if (!stillValid) {
+      setForm((f) => ({ ...f, courierBranchId: ranked[0].id }));
+    }
+  }, [form.deliveryType, form.regionCode, form.courierBranchId, selectedCompany]);
 
   useEffect(() => {
     if (!isValidUzPhone(form.phone)) return;
@@ -227,6 +264,8 @@ export default function CheckoutPage() {
             address: data.address || f.address,
             telegramUsername: data.telegramUsername || f.telegramUsername,
             preferredCourierId: data.preferredCourierId || f.preferredCourierId,
+            courierCompanyId: data.courierCompanyId || data.preferredCourierId || f.courierCompanyId,
+            courierBranchId: data.courierBranchId || f.courierBranchId,
           };
           if (data.deliveryType === "SHOP_DELIVERY" || data.deliveryType === "COURIER_CHOICE" || data.deliveryType === "PICKUP") {
             next.deliveryType = data.deliveryType;
@@ -275,8 +314,8 @@ export default function CheckoutPage() {
       setError("Telefon +998 dan keyin 9 ta raqam bo‘lishi kerak (jami 12 raqam)");
       return;
     }
-    if (form.deliveryType === "COURIER_CHOICE" && !form.preferredCourierId) {
-      setError("Kuryerni tanlang yoki «Do‘kon o‘zi yuboradi»ni belgilang");
+    if (form.deliveryType === "COURIER_CHOICE" && !form.courierCompanyId) {
+      setError("Kuryer kompaniyasini tanlang yoki «Do‘kon o‘zi yuboradi»ni belgilang");
       return;
     }
     if (
@@ -299,6 +338,12 @@ export default function CheckoutPage() {
           address: form.address,
           paymentMethod: form.paymentMethod,
           deliveryType: form.deliveryType,
+          courierCompanyId: form.deliveryType === "COURIER_CHOICE" ? form.courierCompanyId : null,
+          courierBranchId: form.deliveryType === "COURIER_CHOICE" ? form.courierBranchId || null : null,
+          courierBranchLabel:
+            form.deliveryType === "COURIER_CHOICE" && selectedBranch
+              ? formatBranchLabel(selectedBranch)
+              : null,
           preferredCourierId: form.preferredCourierId || null,
           pickupWarehouseId: form.deliveryType === "PICKUP" ? form.pickupWarehouseId : null,
           notifyChannel: form.notifyChannel,
@@ -325,6 +370,8 @@ export default function CheckoutPage() {
         notifyChannel: form.notifyChannel,
         telegramUsername: form.telegramUsername,
         preferredCourierId: form.preferredCourierId,
+        courierCompanyId: form.courierCompanyId,
+        courierBranchId: form.courierBranchId,
       });
       setHasSavedDraft(true);
       clear();
@@ -667,9 +714,19 @@ export default function CheckoutPage() {
                 type="button"
                 onClick={() => {
                   setStep(1);
+                  const first = courierCatalog[0];
+                  const firstBranch = first
+                    ? sortBranchesByRegion(first.branches, form.regionCode)[0]
+                    : null;
                   setForm({
                     ...form,
                     deliveryType: d.id,
+                    courierCompanyId:
+                      d.id === "COURIER_CHOICE" ? form.courierCompanyId || first?.id || "" : "",
+                    courierBranchId:
+                      d.id === "COURIER_CHOICE"
+                        ? form.courierBranchId || firstBranch?.id || ""
+                        : "",
                     preferredCourierId: d.id === "COURIER_CHOICE" ? form.preferredCourierId : "",
                   });
                 }}
@@ -687,29 +744,115 @@ export default function CheckoutPage() {
           </div>
 
           {form.deliveryType === "COURIER_CHOICE" && (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {couriers.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setForm({ ...form, preferredCourierId: c.id })}
-                  className={cn(
-                    "rounded-xl border px-3 py-2.5 text-left text-sm",
-                    form.preferredCourierId === c.id
-                      ? "border-lf-red bg-lf-pink text-lf-red"
-                      : "border-lf-border"
+            <div className="space-y-3">
+              <p className="text-xs text-lf-muted">
+                O‘zbekiston bo‘ylab yetkazadigan asosiy kompaniyalar. Viloyatingiz ({regionName}) dagi
+                punktlar birinchi ko‘rsatiladi.
+              </p>
+              <div className="grid gap-2">
+                {courierCatalog.map((c) => {
+                  const localCount = c.branches.filter((b) => b.regionCode === form.regionCode).length;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        const ranked = sortBranchesByRegion(c.branches, form.regionCode);
+                        setForm({
+                          ...form,
+                          courierCompanyId: c.id,
+                          courierBranchId: ranked[0]?.id || "",
+                          preferredCourierId: c.code,
+                        });
+                      }}
+                      className={cn(
+                        "rounded-xl border px-3 py-2.5 text-left text-sm",
+                        form.courierCompanyId === c.id
+                          ? "border-lf-red bg-lf-pink"
+                          : "border-lf-border"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "font-semibold",
+                          form.courierCompanyId === c.id && "text-lf-red"
+                        )}
+                      >
+                        {c.name}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-lf-muted">{c.shortDesc}</div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-lf-muted">
+                        <span>{c.coverage}</span>
+                        {c.phone && <span>☎ {c.phone}</span>}
+                        {localCount > 0 && (
+                          <span className="font-medium text-emerald-700">
+                            {localCount} ta punkt shu viloyatda
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedCompany && (
+                <div className="space-y-2 rounded-xl border border-lf-border bg-lf-bg/60 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-lf-muted">
+                    Filial / punkt — {selectedCompany.name}
+                  </div>
+                  {selectedCompany.website && (
+                    <a
+                      href={selectedCompany.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block text-[11px] font-medium text-lf-red underline underline-offset-2"
+                    >
+                      {selectedCompany.website.replace(/^https?:\/\//, "")}
+                    </a>
                   )}
-                >
-                  <div className="font-medium">{c.nameUz || c.name}</div>
-                  {c.notes && <div className="text-[11px] text-lf-muted">{c.notes}</div>}
-                </button>
-              ))}
+                  <p className="text-[11px] text-lf-muted">{selectedCompany.pickupNote}</p>
+                  <div className="grid gap-2">
+                    {sortedBranches.map((b) => {
+                      const local = b.regionCode === form.regionCode;
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => setForm({ ...form, courierBranchId: b.id })}
+                          className={cn(
+                            "rounded-xl border bg-white px-3 py-2.5 text-left text-sm",
+                            form.courierBranchId === b.id
+                              ? "border-lf-red bg-lf-pink"
+                              : "border-lf-border"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-medium">{b.name}</div>
+                            {local && (
+                              <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                Sizning viloyat
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-lf-muted">
+                            {b.city} · {b.address}
+                            {b.landmark ? ` · ${b.landmark}` : ""}
+                          </div>
+                          {b.phone && (
+                            <div className="mt-0.5 text-[11px] text-lf-muted">☎ {b.phone}</div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {form.deliveryType === "PICKUP" && (
             <label className="block space-y-1">
-              <span className="text-xs text-lf-muted">Qayerdan olasiz?</span>
+              <span className="text-xs text-lf-muted">Qayerdan olasiz? (ombor manzili)</span>
               <select
                 value={form.pickupWarehouseId}
                 onChange={(e) => setForm({ ...form, pickupWarehouseId: e.target.value })}
@@ -721,6 +864,9 @@ export default function CheckoutPage() {
                   </option>
                 ))}
               </select>
+              {pickups.length === 0 && (
+                <p className="text-[11px] text-amber-700">Ombor manzillari hali yuklanmadi.</p>
+              )}
             </label>
           )}
         </div>

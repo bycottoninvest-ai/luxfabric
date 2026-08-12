@@ -153,6 +153,12 @@ model Order {
   telegramUsername  String?
   preferredCourierId String?
   preferredCourier  CourierPartner? @relation("PreferredCourier", fields: [preferredCourierId], references: [id])
+  /// Mijoz tanlagan kompaniya kodi (BTS, FARGO, …) — UI katalogi bilan mos
+  courierCompanyId  String?
+  /// Tanlangan filial/punkt id (uz-couriers branches)
+  courierBranchId   String?
+  /// Filial manzili matni (snapshot)
+  courierBranchLabel String?
   courierCode       String?
   courierTracking   String?
   courierLabel      String?
