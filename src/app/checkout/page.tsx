@@ -42,6 +42,31 @@ const notifyOptions = [
 const steps = ["Mahsulot", "Yetkazish", "To‘lov", "Tasdiq"];
 const CUSTOMER_KEY = "lf_checkout_customer";
 
+/** Contact Picker API (asosan Android Chrome) */
+type ContactAddress = {
+  addressLine?: string[];
+  city?: string;
+  country?: string;
+  postalCode?: string;
+  region?: string;
+};
+type ContactInfo = {
+  name?: string[];
+  tel?: string[];
+  address?: ContactAddress[];
+};
+type ContactsManager = {
+  select: (properties: string[], options?: { multiple?: boolean }) => Promise<ContactInfo[]>;
+};
+
+function getContactsManager(): ContactsManager | null {
+  if (typeof navigator === "undefined") return null;
+  const nav = navigator as Navigator & { contacts?: ContactsManager };
+  if (!nav.contacts || typeof nav.contacts.select !== "function") return null;
+  if (!("ContactsManager" in window)) return null;
+  return nav.contacts;
+}
+
 type Courier = { id: string; code: string; nameUz: string; name: string; notes: string | null };
 type Pickup = {
   id: string;
@@ -92,6 +117,14 @@ function saveCustomerDraft(data: {
   }
 }
 
+function clearCustomerDraft() {
+  try {
+    localStorage.removeItem(CUSTOMER_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, total, clear } = useCart();
@@ -102,9 +135,12 @@ export default function CheckoutPage() {
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [locating, setLocating] = useState(false);
+  const [pickingContact, setPickingContact] = useState(false);
   const [locHint, setLocHint] = useState("");
   const [profileHint, setProfileHint] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
+  const [hasSavedDraft, setHasSavedDraft] = useState(false);
+  const [contactPickerOk, setContactPickerOk] = useState(false);
   const [source] = useState(() => {
     if (typeof window === "undefined") return "STORE";
     return new URLSearchParams(window.location.search).get("from") === "instagram"
@@ -131,10 +167,12 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
+    setContactPickerOk(!!getContactsManager());
     try {
       const raw = localStorage.getItem(CUSTOMER_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as Partial<CheckoutForm> & { city?: string };
+      setHasSavedDraft(true);
       setForm((f) => {
         let next: CheckoutForm = {
           ...f,
@@ -152,7 +190,7 @@ export default function CheckoutPage() {
         return next;
       });
       if (saved.name || saved.address || saved.phone) {
-        setProfileHint("Oldingi ma’lumotlaringiz yuklandi — kerak bo‘lsa o‘zgartiring.");
+        setProfileHint("Oldingi buyurtma ma’lumotlari yuklandi — kerak bo‘lsa o‘zgartiring.");
       }
     } catch {
       /* ignore */
@@ -288,6 +326,7 @@ export default function CheckoutPage() {
         telegramUsername: form.telegramUsername,
         preferredCourierId: form.preferredCourierId,
       });
+      setHasSavedDraft(true);
       clear();
       if (typeof data.paymentUrl === "string" && data.paymentUrl) {
         window.location.href = data.paymentUrl;
@@ -351,6 +390,68 @@ export default function CheckoutPage() {
     }
   }
 
+  async function pickContact() {
+    const contacts = getContactsManager();
+    if (!contacts) {
+      setError("Kontakt tanlash ushbu brauzerda ishlamaydi (Android Chrome tavsiya etiladi)");
+      return;
+    }
+    setPickingContact(true);
+    setError("");
+    try {
+      const selected = await contacts.select(["name", "tel", "address"], { multiple: false });
+      const c = selected?.[0];
+      if (!c) return;
+
+      const fullName = (c.name?.[0] || "").trim();
+      const rawTel = (c.tel?.[0] || "").trim();
+      const addr = c.address?.[0];
+      const line = addr?.addressLine?.filter(Boolean).join(", ") || "";
+      const geoBits = [line, addr?.city, addr?.region, addr?.country].filter(Boolean).join(", ");
+      const matched = matchUzFromGeoText(geoBits);
+
+      setForm((f) => {
+        let next: CheckoutForm = {
+          ...f,
+          name: fullName || f.name,
+          phone: rawTel ? maskUzPhone(rawTel) : f.phone,
+          address: line || f.address,
+        };
+        if (matched) {
+          next = { ...next, regionCode: matched.regionCode, district: matched.district };
+        } else if (addr?.city || addr?.region) {
+          next = applyCityToForm([addr.city, addr.region].filter(Boolean).join(" "), next);
+        }
+        return next;
+      });
+      setProfileHint("Kontakt tanlandi — ism, telefon va manzil to‘ldirildi. Kerak bo‘lsa tuzating.");
+      setLocHint("");
+      setStep(1);
+    } catch (err) {
+      // Foydalanuvchi bekor qilsa — jim
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError("Kontakt tanlash bekor qilindi yoki ruxsat berilmadi");
+    } finally {
+      setPickingContact(false);
+    }
+  }
+
+  function clearSavedCustomer() {
+    clearCustomerDraft();
+    setHasSavedDraft(false);
+    setProfileHint("");
+    setForm((f) => ({
+      ...f,
+      name: "",
+      phone: "+998",
+      regionCode: "TAS",
+      district: "Yunusobod",
+      address: "",
+      telegramUsername: "",
+    }));
+    setLocHint("Saqlangan ma’lumot tozalandi.");
+  }
+
   const delivery = form.deliveryType === "PICKUP" ? 0 : 15000;
   const phoneOk = isValidUzPhone(form.phone);
   const sum = total();
@@ -390,29 +491,59 @@ export default function CheckoutPage() {
         </div>
 
         <div className="space-y-3 rounded-2xl border border-lf-border bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs font-semibold uppercase tracking-[0.12em] text-lf-muted">2. Manzil</div>
-            <button
-              type="button"
-              onClick={detectLocation}
-              disabled={locating}
-              className="rounded-lg border border-lf-red/30 bg-lf-pink px-2.5 py-1 text-[11px] font-semibold text-lf-red disabled:opacity-60"
-            >
-              {locating ? "Aniqlanmoqda..." : "Joylashuvni aniqlash"}
-            </button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {contactPickerOk ? (
+                <button
+                  type="button"
+                  onClick={pickContact}
+                  disabled={pickingContact}
+                  className="rounded-lg border border-lf-red/30 bg-lf-pink px-2.5 py-1 text-[11px] font-semibold text-lf-red disabled:opacity-60"
+                >
+                  {pickingContact ? "Tanlanmoqda..." : "Kontaktni tanlash"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="Faqat Android Chrome (HTTPS) da ishlaydi"
+                  className="rounded-lg border border-lf-border bg-lf-bg px-2.5 py-1 text-[11px] font-semibold text-lf-muted opacity-60"
+                >
+                  Kontaktni tanlash
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={detectLocation}
+                disabled={locating}
+                className="rounded-lg border border-lf-red/30 bg-lf-pink px-2.5 py-1 text-[11px] font-semibold text-lf-red disabled:opacity-60"
+              >
+                {locating ? "Aniqlanmoqda..." : "Joylashuvni aniqlash"}
+              </button>
+            </div>
           </div>
+          {!contactPickerOk && (
+            <p className="text-[11px] text-lf-muted">
+              «Kontaktni tanlash» asosan Android Chrome da ishlaydi. Boshqa brauzerlarda Autofill yoki saqlangan
+              buyurtma ishlatiladi.
+            </p>
+          )}
 
           <label className="block space-y-1">
             <span className="text-xs text-lf-muted">Ism</span>
             <input
               required
+              name="name"
+              autoComplete="name"
+              autoCapitalize="words"
               value={form.name}
               onFocus={() => setStep(1)}
               onChange={(e) => {
                 setStep(1);
                 setForm({ ...form, name: e.target.value });
               }}
-              placeholder="Ismingiz"
+              placeholder="Ism Familiya"
               className="w-full rounded-xl border border-lf-border bg-lf-bg px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
             />
           </label>
@@ -422,7 +553,8 @@ export default function CheckoutPage() {
             <input
               required
               type="tel"
-              inputMode="numeric"
+              name="tel"
+              inputMode="tel"
               autoComplete="tel"
               maxLength={13}
               value={form.phone}
@@ -446,6 +578,8 @@ export default function CheckoutPage() {
             <span className="text-xs text-lf-muted">Viloyat / shahar</span>
             <select
               required
+              name="address-level1"
+              autoComplete="address-level1"
               value={form.regionCode}
               onChange={(e) => {
                 const code = e.target.value;
@@ -467,6 +601,8 @@ export default function CheckoutPage() {
             <span className="text-xs text-lf-muted">Tuman / rayon</span>
             <select
               required
+              name="address-level2"
+              autoComplete="address-level2"
               value={form.district}
               onChange={(e) => {
                 setStep(1);
@@ -486,6 +622,8 @@ export default function CheckoutPage() {
             <span className="text-xs text-lf-muted">Manzil</span>
             <input
               required
+              name="address-line1"
+              autoComplete="address-line1"
               value={form.address}
               onFocus={() => setStep(1)}
               onChange={(e) => {
@@ -496,9 +634,28 @@ export default function CheckoutPage() {
               className="w-full rounded-xl border border-lf-border bg-lf-bg px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
             />
           </label>
+          {/* Autofill uchun yashirin postal-code (UI da ko‘rinmaydi) */}
+          <input
+            type="text"
+            name="postal-code"
+            autoComplete="postal-code"
+            tabIndex={-1}
+            aria-hidden
+            className="sr-only"
+            defaultValue=""
+          />
           {locHint && <p className="text-[11px] text-emerald-600">{locHint}</p>}
           {profileHint && <p className="text-[11px] text-emerald-600">{profileHint}</p>}
           {lookingUp && <p className="text-[11px] text-lf-muted">Mijoz bazadan qidirilmoqda...</p>}
+          {hasSavedDraft && (
+            <button
+              type="button"
+              onClick={clearSavedCustomer}
+              className="text-[11px] font-medium text-lf-muted underline underline-offset-2 hover:text-lf-red"
+            >
+              Saqlangan ma’lumotni tozalash
+            </button>
+          )}
         </div>
 
         <div className="space-y-3 rounded-2xl border border-lf-border bg-white p-4 shadow-sm">
