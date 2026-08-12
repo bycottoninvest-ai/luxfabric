@@ -11,6 +11,8 @@ import {
   deliveryTypeLabel,
   resolveCourierMeta,
 } from "@/lib/order-tracking";
+import { estimateDeliveryLabel } from "@/lib/delivery-eta";
+import { matchUzFromGeoText } from "@/lib/uzbekistan-regions";
 import { ORDER_STATUS, formatSom } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +39,15 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
     order.courierTracking
   );
   const isPickup = order.deliveryType === "PICKUP";
+  const regionGuess = matchUzFromGeoText(order.city)?.regionCode || "TAS";
+  const etaLabel = estimateDeliveryLabel({
+    regionCode: regionGuess,
+    deliveryType:
+      order.deliveryType === "PICKUP" || order.deliveryType === "COURIER_CHOICE"
+        ? order.deliveryType
+        : "SHOP_DELIVERY",
+    courierKey: courierMeta?.code || order.courierCode || order.courierCompanyId,
+  });
 
   return (
     <StoreShell>
@@ -68,6 +79,9 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
                 ? ""
                 : ` · ${order.city}${order.address ? `, ${order.address}` : ""}`}
             </div>
+            {!["DELIVERED", "CANCELLED", "RETURNED"].includes(order.status) && (
+              <div className="mt-2 text-xs font-medium text-emerald-800">{etaLabel}</div>
+            )}
           </div>
         </div>
 

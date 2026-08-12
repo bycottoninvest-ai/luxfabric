@@ -4,6 +4,7 @@
 
 **Vizual:** `docs/VIZUAL-TIZIM.md` + rasmlar  
 **Real (production) reja:** `docs/PRODUCTION-REJA.md` — test emas, to‘liq ishlashi kerak  
+**Yetkazish strategiyasi:** `docs/YETKAZISH-STRATEGIYA.md` — Toshkent hub + SLA + BTS/Fargo/Yandex  
 **Deploy + Neon:** `docs/VERCEL-DEPLOY.md`  
 **Tiklash PDF qanday:** `docs/LOYIHA-TIKLASH-QANDAY.md`  
 **Private recovery PDF (parolli, gitignore):** `docs/private/LUXFABRIC-HOLAT-RECOVERY-2026-08-13.pdf`  
@@ -148,6 +149,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 | Vazifa | Fayl |
 |--------|------|
 | Holat (public) | `docs/HOLAT-SAQLANGAN.md` |
+| Yetkazish strategiyasi | `docs/YETKAZISH-STRATEGIYA.md` |
 | Cursor qoida | `.cursor/rules/luxfabric-holat.mdc` |
 | Admin Reels UI | `src/components/admin/ReelsManager.tsx` |
 | Workspace | `src/components/admin/InstagramWorkspace.tsx` |
@@ -201,6 +203,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - [ ] (Ixtiyoriy) Instagram Shop / Commerce
 - [ ] Neon parol Reset · buyurtma/SMS/to‘lov to‘liq tekshiruv · Monitoring
 - [ ] To‘liq WB: Q&A, “faqat xarid qilganlar”, video-sharh
+- [x] Yetkazish strategiyasi hujjati + checkout/tracking ETA (`docs/YETKAZISH-STRATEGIYA.md`)
 
 ---
 

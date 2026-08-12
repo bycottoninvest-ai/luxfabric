@@ -13,6 +13,7 @@ import {
   type UzCourierBranch,
   type UzCourierCompany,
 } from "@/lib/uz-couriers";
+import { estimateDeliveryLabel } from "@/lib/delivery-eta";
 
 const payments = [
   { id: "CLICK", label: "Click" },
@@ -186,6 +187,26 @@ export default function CheckoutPage() {
     return sortBranchesByRegion(selectedCompany.branches, form.regionCode);
   }, [selectedCompany, form.regionCode]);
   const selectedBranch = sortedBranches.find((b) => b.id === form.courierBranchId) || null;
+  const deliveryEta = useMemo(
+    () =>
+      estimateDeliveryLabel({
+        regionCode: form.regionCode,
+        deliveryType: form.deliveryType,
+        courierKey:
+          form.deliveryType === "COURIER_CHOICE"
+            ? selectedCompany?.code || form.courierCompanyId || form.preferredCourierId
+            : form.deliveryType === "SHOP_DELIVERY"
+              ? "BTS"
+              : null,
+      }),
+    [
+      form.regionCode,
+      form.deliveryType,
+      form.courierCompanyId,
+      form.preferredCourierId,
+      selectedCompany?.code,
+    ]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -869,6 +890,14 @@ export default function CheckoutPage() {
               )}
             </label>
           )}
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 text-xs text-emerald-900">
+            <span className="font-semibold">Taxminiy yetkazish:</span>{" "}
+            {deliveryEta.replace(/^Taxminiy:\s*/i, "")}
+            <span className="mt-0.5 block text-[11px] font-normal text-emerald-800/80">
+              Ish kunlari · ombordan jo‘natilgandan keyin · kafolat emas
+            </span>
+          </div>
         </div>
 
         <div className="space-y-3 rounded-2xl border border-lf-border bg-white p-4 shadow-sm">
