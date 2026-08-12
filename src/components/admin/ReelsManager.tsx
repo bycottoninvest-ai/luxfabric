@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Music2, Trash2, Upload, Video } from "lucide-react";
 import { formatSom } from "@/lib/utils";
+import { uploadAdminMedia } from "@/lib/client-upload";
 
 type Product = { id: string; name: string; slug: string; price: number };
 type MusicTrack = {
@@ -33,13 +34,7 @@ type Reel = {
 };
 
 async function uploadFile(file: File, kind: "video" | "audio" | "image") {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("kind", kind);
-  const res = await fetch("/api/admin/upload-media", { method: "POST", body: fd });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Yuklash xatosi");
-  return data.url as string;
+  return uploadAdminMedia(file, kind);
 }
 
 function normalizeMusicText(s: string) {

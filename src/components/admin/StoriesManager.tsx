@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageIcon, Trash2, Upload, Video } from "lucide-react";
 import { formatSom } from "@/lib/utils";
+import { uploadAdminMedia } from "@/lib/client-upload";
 
 type Product = { id: string; name: string; slug: string; price: number };
 type Story = {
@@ -21,14 +22,7 @@ type Story = {
 };
 
 async function uploadStoryMedia(file: File, kind: "image" | "video") {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("kind", kind);
-  fd.append("folder", "stories");
-  const res = await fetch("/api/admin/upload-media", { method: "POST", body: fd });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Yuklash xatosi");
-  return data.url as string;
+  return uploadAdminMedia(file, kind, "stories");
 }
 
 function shareBase() {

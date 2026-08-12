@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
-import { randomBytes } from "crypto";
+import { makeUploadName, storeUpload } from "@/lib/storage";
 
 const LIMITS = {
   image: 8 * 1024 * 1024,
@@ -15,7 +13,7 @@ const EXTS = {
   audio: ["mp3", "m4a", "aac", "wav", "ogg"],
 } as const;
 
-/** Umumiy media upload: image | video | audio */
+/** Umumiy media upload: image | video | audio (Blob yoki lokal). */
 export async function POST(req: Request) {
   try {
     const form = await req.formData();
@@ -63,14 +61,17 @@ export async function POST(req: Request) {
           : kind === "video"
             ? "reels"
             : "music";
-    const name = `${Date.now()}-${randomBytes(4).toString("hex")}.${safeExt}`;
-    const dir = path.join(process.cwd(), "public", "uploads", folder);
-    await mkdir(dir, { recursive: true });
+    const name = makeUploadName(safeExt);
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(dir, name), buffer);
+    const url = await storeUpload({
+      folder,
+      filename: name,
+      data: buffer,
+      contentType: file.type || undefined,
+    });
 
     return NextResponse.json({
-      url: `/uploads/${folder}/${name}`,
+      url,
       kind,
       name: file.name,
       size: file.size,

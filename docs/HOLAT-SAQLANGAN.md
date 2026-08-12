@@ -4,7 +4,8 @@
 
 **Vizual:** `docs/VIZUAL-TIZIM.md` + rasmlar  
 **Real (production) reja:** `docs/PRODUCTION-REJA.md` — test emas, to‘liq ishlashi kerak  
-**Deploy + Neon:** `docs/VERCEL-DEPLOY.md`
+**Deploy + Neon:** `docs/VERCEL-DEPLOY.md`  
+**Tiklash PDF (private, parollar o‘zingiz):** `docs/private/LOYIHA-TIKLASH.pdf` — qanday: `docs/LOYIHA-TIKLASH-QANDAY.md`
 
 **Oldingi chat:** [Instagram Reels musiqa](d78b58f1-3fb6-49e9-b3d6-7efb219cdec9)
 
@@ -114,11 +115,15 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 ## Hali qilinmagan / keyingi qadamlar
 
 - [x] **Neon DATABASE_URL** → Vercel env + redeploy (seed buildda avtomatik)
+- [x] **Admin parol** → `/admin/login` + `ADMIN_PASSWORD`
+- [x] **Vercel Blob** → `luxfabric-media` store (video/musiqa/rasm)
 - [ ] Telefon/ISP da domen ochilishini tasdiqlash
 - [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy)
 - [ ] Meta token + webhook prod
-- [ ] Media Blob/S3 (video barqarorligi)
 - [ ] Birinchi real Reel joylash
+- [ ] Neon parol Reset (xavfsizlik)
+- [ ] Buyurtma/SMS/to‘lov oqimi tekshiruvi
+- [ ] Monitoring
 
 ---
 

@@ -10,6 +10,7 @@ import {
   SIZES_BY_GENDER,
   type GenderKey,
 } from "@/lib/product-options";
+import { uploadAdminMedia } from "@/lib/client-upload";
 
 type ImageRow = { url: string; color: string };
 
@@ -71,12 +72,8 @@ export default function NewProductPage() {
     setUploading(true);
     setError("");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Yuklash xatosi");
-      setImages((prev) => [...prev, { url: data.url, color: PRODUCT_COLORS[0].color }]);
+      const url = await uploadAdminMedia(file, "image", "products");
+      setImages((prev) => [...prev, { url, color: PRODUCT_COLORS[0].color }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yuklash xatosi");
     } finally {

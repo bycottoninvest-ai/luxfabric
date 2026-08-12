@@ -47,7 +47,10 @@ export default async function InstagramStoryPreviewPage({ params }: Props) {
               className="object-cover"
               sizes="100vw"
               priority
-              unoptimized={story.mediaUrl.startsWith("/uploads/")}
+              unoptimized={
+                story.mediaUrl.startsWith("/uploads/") ||
+                story.mediaUrl.includes("blob.vercel-storage.com")
+              }
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30" />

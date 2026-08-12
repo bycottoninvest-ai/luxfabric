@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
-import { randomBytes } from "crypto";
+import { makeUploadName, storeUpload } from "@/lib/storage";
 
 export async function POST(req: Request) {
   try {
@@ -19,13 +17,16 @@ export async function POST(req: Request) {
 
     const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
     const safeExt = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext : "jpg";
-    const name = `${Date.now()}-${randomBytes(4).toString("hex")}.${safeExt}`;
-    const dir = path.join(process.cwd(), "public", "uploads", "products");
-    await mkdir(dir, { recursive: true });
+    const name = makeUploadName(safeExt);
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(dir, name), buffer);
+    const url = await storeUpload({
+      folder: "products",
+      filename: name,
+      data: buffer,
+      contentType: file.type || undefined,
+    });
 
-    return NextResponse.json({ url: `/uploads/products/${name}` });
+    return NextResponse.json({ url });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Yuklash xatosi" },
