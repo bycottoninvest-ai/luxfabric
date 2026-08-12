@@ -32,6 +32,13 @@ const schema = z.object({
 export async function POST(req: Request) {
   try {
     const body = schema.parse(await req.json());
+    const showBuy = body.showBuyButton ?? true;
+    if (showBuy && !body.productId) {
+      return NextResponse.json(
+        { error: "«Sotib olish» uchun mahsulot tanlang yoki tugmani o‘chiring" },
+        { status: 400 }
+      );
+    }
     let videoUrl = body.videoUrl;
     let audioEmbedded = false;
     let muxNote: string | null = null;
@@ -59,9 +66,9 @@ export async function POST(req: Request) {
         videoUrl,
         coverUrl: body.coverUrl || null,
         musicId: body.musicId || null,
-        productId: body.productId || null,
+        productId: showBuy ? body.productId || null : null,
         buyButtonLabel: body.buyButtonLabel || "Sotib olish",
-        showBuyButton: body.showBuyButton ?? true,
+        showBuyButton: showBuy,
         isPublished: body.isPublished ?? true,
         sortOrder: body.sortOrder ?? 0,
       },

@@ -541,7 +541,7 @@ export function ReelsManager({
         <div className="rounded-xl border border-lf-red/30 bg-lf-red/10 p-3 space-y-2">
           <label className="block space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-lf-red">
-              1. Avval mahsulotni tanlang
+              1. Avval mahsulotni tanlang (Sotib olish → /i/slug)
             </span>
             <select
               value={productId}
@@ -635,15 +635,22 @@ export function ReelsManager({
             «Sotib olish» / Shop Now tugmasini qo‘yish
           </label>
           {showBuy && (
-            <label className="block space-y-1.5">
-              <span className="text-xs uppercase tracking-[0.12em] text-white/45">Tugma matni</span>
-              <input
-                value={buyLabel}
-                onChange={(e) => setBuyLabel(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                placeholder="Sotib olish"
-              />
-            </label>
+            <div className="space-y-2">
+              {!productId && (
+                <p className="text-[11px] text-amber-300/90">
+                  Mahsulot tanlanmagan — tugma ishlashi uchun yuqoridan modelni tanlang.
+                </p>
+              )}
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Tugma matni</span>
+                <input
+                  value={buyLabel}
+                  onChange={(e) => setBuyLabel(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                  placeholder="Sotib olish"
+                />
+              </label>
+            </div>
           )}
         </div>
 

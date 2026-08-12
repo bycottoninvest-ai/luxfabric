@@ -94,7 +94,7 @@ export default async function InstagramReelsPage({ searchParams }: Props) {
                     <div className="text-xs text-white/70">{formatSom(p.price)}</div>
                   </div>
                   <Link
-                    href={`/product/${p.slug}?from=instagram`}
+                    href={`/i/${p.slug}`}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
                   >
                     <ShoppingBag className="h-4 w-4" /> Sotib olish

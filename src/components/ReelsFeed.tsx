@@ -163,14 +163,21 @@ function ReelCard({
               {reel.product.name} · {formatSom(reel.product.price)}
             </div>
           )}
-          {reel.showBuyButton && reel.product && (
+          {reel.showBuyButton && reel.product ? (
             <Link
-              href={`/product/${reel.product.slug}?from=instagram`}
+              href={`/i/${reel.product.slug}`}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
             >
               <ShoppingBag className="h-4 w-4" /> {reel.buyButtonLabel || "Sotib olish"}
             </Link>
-          )}
+          ) : reel.showBuyButton && !reel.product ? (
+            <Link
+              href="/catalog"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
+            >
+              <ShoppingBag className="h-4 w-4" /> Katalog
+            </Link>
+          ) : null}
         </div>
       </div>
     </article>
