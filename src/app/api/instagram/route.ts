@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSetting, getAppUrl, getSettings } from "@/lib/settings";
 import { replyToInstagramComment, sendInstagramDm } from "@/lib/instagram-graph";
-import { generateShopReply, templateShopReply } from "@/lib/shop-ai-reply";
+import { generateShopReply, templateShopReply, openaiConfigured } from "@/lib/shop-ai-reply";
 
 function extractMessaging(body: unknown): { senderId: string; text: string } | null {
   const b = body as {
@@ -42,6 +42,7 @@ type IgCommentEvent = {
   text: string;
   mediaId?: string;
   fromId?: string;
+  username?: string;
   parentId?: string;
 };
 
@@ -67,12 +68,12 @@ function extractComments(body: unknown): IgCommentEvent[] {
       if (change.field !== "comments" && change.field !== "live_comments") continue;
       const v = change.value;
       if (!v?.id || !v.text) continue;
-      // O‘z javobimizga takroriy javob bermaslik (parent_id = asosiy izoh)
       out.push({
         commentId: String(v.id),
         text: String(v.text),
         mediaId: v.media?.id ? String(v.media.id) : undefined,
         fromId: v.from?.id ? String(v.from.id) : undefined,
+        username: v.from?.username ? String(v.from.username) : undefined,
         parentId: v.parent_id ? String(v.parent_id) : undefined,
       });
     }
@@ -81,7 +82,7 @@ function extractComments(body: unknown): IgCommentEvent[] {
 }
 
 async function productContextFromMedia(mediaId?: string) {
-  if (!mediaId) return {};
+  if (!mediaId) return { ctx: {}, reelId: null as string | null };
   const reel = await prisma.instagramReel.findFirst({
     where: { metaMediaId: mediaId },
     include: {
@@ -113,14 +114,42 @@ async function productContextFromMedia(mediaId?: string) {
       })
     : null;
   const product = reel?.product || story?.product;
-  if (!product) return {};
   return {
-    productName: product.name,
-    productSlug: product.slug,
-    price: product.price,
-    fabric: product.fabric,
-    sizes: [...new Set(product.variants.map((v) => v.size))],
+    reelId: reel?.id ?? null,
+    ctx: product
+      ? {
+          productName: product.name,
+          productSlug: product.slug,
+          price: product.price,
+          fabric: product.fabric,
+          sizes: [...new Set(product.variants.map((v) => v.size))],
+        }
+      : {},
   };
+}
+
+async function upsertIncomingComment(c: IgCommentEvent, reelId: string | null) {
+  await prisma.instagramComment.upsert({
+    where: { commentId: c.commentId },
+    create: {
+      commentId: c.commentId,
+      mediaId: c.mediaId || null,
+      reelId,
+      username: c.username || "",
+      fromId: c.fromId || null,
+      text: c.text.slice(0, 2000),
+      parentId: c.parentId || null,
+      postedAt: new Date(),
+    },
+    update: {
+      mediaId: c.mediaId || undefined,
+      reelId: reelId || undefined,
+      username: c.username || undefined,
+      fromId: c.fromId || undefined,
+      text: c.text.slice(0, 2000),
+      parentId: c.parentId || undefined,
+    },
+  });
 }
 
 export async function GET(req: Request) {
@@ -138,6 +167,7 @@ export async function GET(req: Request) {
   }
 
   const enabled = (await getSetting("instagram_enabled")) === "true";
+  const aiComments = (await getSetting("instagram_ai_comments", "true")) !== "false";
   const domain = await getAppUrl();
   const username = await getSetting("instagram_username", "luxfabricshop.uz");
   const hasToken = Boolean(await getSetting("instagram_page_token"));
@@ -146,6 +176,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     enabled,
+    aiComments,
+    openaiConfigured: openaiConfigured(),
     username,
     hasPageToken: hasToken,
     igUserId: igUserId || null,
@@ -154,12 +186,14 @@ export async function GET(req: Request) {
     dmDemo: `${domain}/instagram/dm`,
     admin: `${domain}/admin/instagram`,
     publishApi: `${domain}/api/admin/instagram/publish`,
-    commentAutoReply: true,
+    commentAutoReply: enabled && aiComments,
+    webhookFields: ["messages", "comments"],
   });
 }
 
 export async function POST(req: Request) {
   const enabled = (await getSetting("instagram_enabled")) === "true";
+  const aiComments = (await getSetting("instagram_ai_comments", "true")) !== "false";
   const pageToken = await getSetting("instagram_page_token");
   const body = await req.json().catch(() => ({}));
 
@@ -171,34 +205,56 @@ export async function POST(req: Request) {
     "instagram_dm_welcome",
   ]);
 
-  const results: Record<string, unknown> = { received: true, enabled };
+  const results: Record<string, unknown> = {
+    received: true,
+    enabled,
+    aiComments,
+  };
 
   // --- Izohlar (comments) ---
   const comments = extractComments(body);
-  if (enabled && pageToken && comments.length > 0) {
-    const commentResults: Array<{ id: string; replied: boolean; reason?: string }> = [];
+  if (comments.length > 0) {
+    const commentResults: Array<{ id: string; replied: boolean; reason?: string; stored?: boolean }> =
+      [];
     for (const c of comments) {
       try {
+        const { ctx, reelId } = await productContextFromMedia(c.mediaId);
+        await upsertIncomingComment(c, reelId);
+
+        if (!enabled || !pageToken) {
+          commentResults.push({ id: c.commentId, replied: false, reason: "disabled", stored: true });
+          continue;
+        }
+        if (!aiComments) {
+          commentResults.push({ id: c.commentId, replied: false, reason: "ai_off", stored: true });
+          continue;
+        }
+        // O‘z javobimizga (parent reply) qayta javob bermaslik — faqat ildiz izohlar
+        if (c.parentId) {
+          commentResults.push({ id: c.commentId, replied: false, reason: "reply_thread", stored: true });
+          continue;
+        }
+
         const already = await prisma.instagramCommentReply.findUnique({
           where: { commentId: c.commentId },
         });
         if (already) {
-          commentResults.push({ id: c.commentId, replied: false, reason: "already" });
+          commentResults.push({ id: c.commentId, replied: false, reason: "already", stored: true });
           continue;
         }
 
-        // Oxirgi 2 daqiqada > 8 javob — spam himoya
         const recent = await prisma.instagramCommentReply.count({
           where: { createdAt: { gte: new Date(Date.now() - 2 * 60 * 1000) } },
         });
         if (recent >= 8) {
-          commentResults.push({ id: c.commentId, replied: false, reason: "rate_limit" });
+          commentResults.push({ id: c.commentId, replied: false, reason: "rate_limit", stored: true });
           continue;
         }
 
-        const ctx = await productContextFromMedia(c.mediaId);
         const ai = await generateShopReply(c.text, ctx);
-        await replyToInstagramComment(c.commentId, ai.reply);
+        const graphRes = await replyToInstagramComment(c.commentId, ai.reply);
+        const replyId = typeof graphRes.id === "string" ? graphRes.id : null;
+
         await prisma.instagramCommentReply.create({
           data: {
             commentId: c.commentId,
@@ -208,7 +264,15 @@ export async function POST(req: Request) {
             source: ai.source,
           },
         });
-        commentResults.push({ id: c.commentId, replied: true });
+        await prisma.instagramComment.update({
+          where: { commentId: c.commentId },
+          data: {
+            ourReplyText: ai.reply.slice(0, 900),
+            ourReplyId: replyId,
+            repliedAt: new Date(),
+          },
+        });
+        commentResults.push({ id: c.commentId, replied: true, stored: true });
       } catch (e) {
         commentResults.push({
           id: c.commentId,
@@ -225,8 +289,6 @@ export async function POST(req: Request) {
   if (enabled && pageToken && messaging) {
     try {
       const ai = await generateShopReply(messaging.text, {});
-      // Sozlamalardagi shablonlar AI ishlamasa ham ustunlik qilishi mumkin emas —
-      // AI + templateShopReply allaqachon shablon. Maxsus sozlama bo‘lsa, narx/olcham uchun qo‘llaymiz.
       let reply = ai.reply;
       if (ai.source === "template") {
         if (/narx|price|qancha/i.test(messaging.text) && replies.instagram_auto_reply_price) {
@@ -236,7 +298,6 @@ export async function POST(req: Request) {
         } else if (/yetkaz|dostavka|delivery/i.test(messaging.text) && replies.instagram_auto_reply_delivery) {
           reply = replies.instagram_auto_reply_delivery;
         } else if (replies.instagram_auto_reply_default || replies.instagram_dm_welcome) {
-          // Umumiy fallback — AI shablon yaxshiroq bo‘lishi mumkin
           if (!/salom|assalom/i.test(messaging.text)) {
             reply =
               replies.instagram_auto_reply_default ||

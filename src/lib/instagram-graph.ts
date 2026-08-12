@@ -413,6 +413,65 @@ export async function tryTagProductsOnMedia(
   }
 }
 
+export type IgMediaComment = {
+  id: string;
+  text: string;
+  username?: string;
+  timestamp?: string;
+  fromId?: string;
+  parentId?: string;
+};
+
+/**
+ * Media izohlarini olish: GET /{media-id}/comments
+ * Instagram Login: instagram_business_manage_comments
+ */
+export async function listInstagramMediaComments(mediaId: string): Promise<IgMediaComment[]> {
+  const pageToken =
+    (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
+  if (!pageToken.trim()) throw new IgPublishError("Page token yo‘q");
+  if (!mediaId.trim()) throw new IgPublishError("mediaId yo‘q");
+
+  const preferredIg =
+    (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
+  let graphBase = GRAPH_FB;
+  try {
+    const resolved = await resolveIgAccess(pageToken.trim(), preferredIg);
+    graphBase = resolved.graphBase;
+  } catch {
+    /* default FB */
+  }
+
+  const fields = "id,text,username,timestamp,from,parent_id";
+  const url = `${graphBase}/${mediaId.trim()}/comments?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(pageToken.trim())}`;
+  const res = await fetch(url);
+  const data = (await res.json()) as {
+    data?: Array<{
+      id?: string;
+      text?: string;
+      username?: string;
+      timestamp?: string;
+      parent_id?: string;
+      from?: { id?: string; username?: string };
+    }>;
+    error?: { message?: string };
+  };
+  if (!res.ok || data.error) {
+    throw new IgPublishError(data.error?.message || "Izohlar olinmadi");
+  }
+
+  return (data.data || [])
+    .filter((c) => c.id && c.text)
+    .map((c) => ({
+      id: String(c.id),
+      text: String(c.text),
+      username: c.username || c.from?.username || undefined,
+      timestamp: c.timestamp,
+      fromId: c.from?.id ? String(c.from.id) : undefined,
+      parentId: c.parent_id ? String(c.parent_id) : undefined,
+    }));
+}
+
 /**
  * Instagram izohga javob (Graph: POST /{comment-id}/replies).
  * Page yoki IG Login token + comments ruxsati kerak.

@@ -2,7 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Music2, Pencil, Trash2, Upload, Video, X } from "lucide-react";
+import {
+  Copy,
+  MessageCircle,
+  Music2,
+  PanelLeft,
+  Pencil,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  Upload,
+  Video,
+  X,
+} from "lucide-react";
 import { formatSom } from "@/lib/utils";
 import { uploadAdminMedia } from "@/lib/client-upload";
 import { productBuyUrl } from "@/lib/ig-caption";
@@ -35,6 +47,31 @@ type Reel = {
   product: { id: string; name: string; slug: string; price: number } | null;
   muxNote?: string | null;
 };
+type IgComment = {
+  id: string;
+  commentId: string;
+  username: string;
+  text: string;
+  postedAt?: string | Date | null;
+  createdAt?: string | Date;
+  ourReplyText?: string | null;
+  repliedAt?: string | Date | null;
+};
+type DetailTab = "edit" | "comments";
+
+function formatCommentTime(value?: string | Date | null) {
+  if (!value) return "";
+  try {
+    return new Date(value).toLocaleString("uz-UZ", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
 
 async function uploadFile(file: File, kind: "video" | "audio" | "image") {
   return uploadAdminMedia(file, kind);
@@ -101,8 +138,9 @@ export function ReelsManager({
   const [musicArtist, setMusicArtist] = useState("LUXFABRIC");
   const [musicUrl, setMusicUrl] = useState("");
 
-  /** Yon panel — mavjud Reelni tahrirlash */
+  /** Yon panel — mavjud Reelni tahrirlash + izohlar */
   const [editing, setEditing] = useState<Reel | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("edit");
   const [editTitle, setEditTitle] = useState("");
   const [editCaption, setEditCaption] = useState("");
   const [editMusicId, setEditMusicId] = useState("");
@@ -113,6 +151,13 @@ export function ReelsManager({
   const [editCoverUrl, setEditCoverUrl] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const [editMsg, setEditMsg] = useState("");
+
+  /** Chap arxiv paneli — barcha saqlangan/joylangan Reels */
+  const [archiveOpen, setArchiveOpen] = useState(true);
+  const [comments, setComments] = useState<IgComment[]>([]);
+  const [commentsMsg, setCommentsMsg] = useState("");
+  const [commentsBusy, setCommentsBusy] = useState(false);
+  const [replyBusyId, setReplyBusyId] = useState<string | null>(null);
 
   const productOptions = useMemo(() => products, [products]);
   const musicTracks = useMemo(() => music, [music]);
@@ -428,8 +473,91 @@ export function ReelsManager({
     }
   }
 
-  function openEdit(reel: Reel) {
+  async function loadComments(reelId: string, opts?: { silent?: boolean }) {
+    if (!opts?.silent) {
+      setCommentsBusy(true);
+      setCommentsMsg("");
+    }
+    try {
+      const res = await fetch(`/api/admin/instagram/comments?reelId=${encodeURIComponent(reelId)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Izohlar xatosi");
+      setComments(Array.isArray(data.comments) ? data.comments : []);
+      if (!data.published) {
+        setCommentsMsg(data.message || "Hali IGga joylanmagan — izohlar yo‘q");
+      } else if (!opts?.silent) {
+        setCommentsMsg(
+          data.comments?.length
+            ? `${data.comments.length} izoh`
+            : "Izohlar bo‘sh — «Izohlarni yangilash» yoki webhook kutilsin"
+        );
+      }
+    } catch (e) {
+      setComments([]);
+      setCommentsMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Izohlar xatosi");
+    } finally {
+      if (!opts?.silent) setCommentsBusy(false);
+    }
+  }
+
+  async function syncComments() {
+    if (!editing) return;
+    setCommentsBusy(true);
+    setCommentsMsg("Graph dan yuklanmoqda…");
+    try {
+      const res = await fetch("/api/admin/instagram/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync", reelId: editing.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync xatosi");
+      setComments(Array.isArray(data.comments) ? data.comments : []);
+      setCommentsMsg(data.message || "Yangilandi ✓");
+    } catch (e) {
+      setCommentsMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Sync xatosi");
+    } finally {
+      setCommentsBusy(false);
+    }
+  }
+
+  async function aiReplyComment(commentId: string) {
+    if (!editing) return;
+    setReplyBusyId(commentId);
+    setCommentsMsg("");
+    try {
+      const res = await fetch("/api/admin/instagram/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reply",
+          reelId: editing.id,
+          commentId,
+          useAi: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Javob xatosi");
+      if (data.comment) {
+        setComments((list) =>
+          list.map((c) => (c.commentId === commentId ? { ...c, ...data.comment } : c))
+        );
+      }
+      setCommentsMsg(
+        data.source === "openai"
+          ? "AI javob Instagramga yuborildi ✓ (ChatGPT)"
+          : "Javob yuborildi ✓ (shablon — OPENAI_API_KEY ixtiyoriy)"
+      );
+    } catch (e) {
+      setCommentsMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Javob xatosi");
+    } finally {
+      setReplyBusyId(null);
+    }
+  }
+
+  function openEdit(reel: Reel, tab: DetailTab = "edit") {
     setEditing(reel);
+    setDetailTab(tab);
     setEditTitle(reel.title);
     setEditCaption(reel.caption || "");
     setEditMusicId(reel.musicId || "");
@@ -439,12 +567,18 @@ export function ReelsManager({
     setEditPublished(reel.isPublished);
     setEditCoverUrl(reel.coverUrl || "");
     setEditMsg("");
+    setComments([]);
+    setCommentsMsg("");
+    void loadComments(reel.id);
   }
 
   function closeEdit() {
-    if (editBusy) return;
+    if (editBusy || commentsBusy || replyBusyId) return;
     setEditing(null);
     setEditMsg("");
+    setComments([]);
+    setCommentsMsg("");
+    setDetailTab("edit");
   }
 
   async function onEditCover(file: File | null) {
@@ -541,7 +675,10 @@ export function ReelsManager({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "O‘chirish xatosi");
       setReels((list) => list.filter((r) => r.id !== reel.id));
-      if (editing?.id === reel.id) setEditing(null);
+      if (editing?.id === reel.id) {
+        setEditing(null);
+        setComments([]);
+      }
       setMsg("Reel o‘chirildi ✓");
       router.refresh();
     } catch (e) {
@@ -561,7 +698,98 @@ export function ReelsManager({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex gap-4">
+      {/* Chap arxiv — barcha Reels doim saqlangan */}
+      <aside
+        className={`${
+          archiveOpen ? "flex" : "hidden lg:flex"
+        } w-full max-w-[220px] shrink-0 flex-col rounded-2xl border border-white/10 bg-white/5 lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)]`}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.1em] text-white/50">
+              Reels arxiv
+            </div>
+            <div className="text-[11px] text-white/40">{reels.length} ta</div>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg bg-white/10 p-1.5 lg:hidden"
+            onClick={() => setArchiveOpen(false)}
+            aria-label="Arxivni yopish"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="flex-1 space-y-1 overflow-y-auto p-2">
+          {reels.length === 0 && (
+            <p className="px-2 py-4 text-[11px] text-white/40">Hali Reel yo‘q</p>
+          )}
+          {reels.map((r) => {
+            const active = editing?.id === r.id;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => openEdit(r, "comments")}
+                className={`flex w-full gap-2 rounded-xl px-2 py-2 text-left transition ${
+                  active
+                    ? "bg-lf-red/20 ring-1 ring-lf-red/50"
+                    : "hover:bg-white/8"
+                }`}
+              >
+                <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-black">
+                  {r.coverUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.coverUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <video
+                      src={r.videoUrl}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium text-white">{r.title}</div>
+                  <div className="truncate text-[10px] text-white/45">
+                    {r.product?.name || "Mahsulotsiz"}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap gap-1 text-[9px]">
+                    <span
+                      className={
+                        r.isPublished ? "text-emerald-400/90" : "text-amber-300/80"
+                      }
+                    >
+                      {r.isPublished ? "Nashr" : "Qoralama"}
+                    </span>
+                    {r.metaMediaId && <span className="text-pink-300/90">· IG ✓</span>}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
+      <div className="min-w-0 flex-1 space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setArchiveOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold lg:hidden"
+        >
+          <PanelLeft className="h-3.5 w-3.5" />
+          Reels arxiv ({reels.length})
+        </button>
+        <p className="text-[11px] text-white/45">
+          Chapdagi arxivdan Reelni oching — tahrir + Instagram izohlari. AI javob Meta/DM da
+          yoqiladi.
+        </p>
+      </div>
+
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Music2 className="h-4 w-4 text-lf-red" />
@@ -889,12 +1117,22 @@ export function ReelsManager({
                 <button
                   type="button"
                   disabled={busy || editBusy}
-                  onClick={() => openEdit(r)}
+                  onClick={() => openEdit(r, "edit")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/15 disabled:opacity-50"
                   title="Caption, mahsulot, musiqa va tugmani tahrirlash"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   Tahrirlash
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || editBusy}
+                  onClick={() => openEdit(r, "comments")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-pink-500/30 bg-pink-500/15 px-3 py-1.5 text-xs font-semibold text-pink-100 hover:bg-pink-500/25 disabled:opacity-50"
+                  title="Instagram izohlari"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Izohlar
                 </button>
                 <button
                   type="button"
@@ -982,7 +1220,7 @@ export function ReelsManager({
         </p>
       )}
 
-      {/* Yon panel — Reel tahrirlash */}
+      {/* Yon panel — Reel tahrirlash + izohlar */}
       {editing && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <button
@@ -994,16 +1232,42 @@ export function ReelsManager({
           <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#12141a] shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <div>
-                <h3 className="font-semibold">Reelni tahrirlash</h3>
-                <p className="text-[11px] text-white/45 truncate max-w-[260px]">{editing.title}</p>
+                <h3 className="font-semibold">Reel</h3>
+                <p className="max-w-[260px] truncate text-[11px] text-white/45">{editing.title}</p>
               </div>
               <button
                 type="button"
                 onClick={closeEdit}
-                disabled={editBusy}
+                disabled={editBusy || Boolean(replyBusyId)}
                 className="rounded-lg bg-white/10 p-2 disabled:opacity-40"
               >
                 <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex gap-1 border-b border-white/10 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setDetailTab("edit")}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${
+                  detailTab === "edit" ? "bg-lf-red/25 text-white" : "text-white/55 hover:bg-white/5"
+                }`}
+              >
+                Tahrir
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDetailTab("comments");
+                  void loadComments(editing.id);
+                }}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${
+                  detailTab === "comments"
+                    ? "bg-pink-500/25 text-white"
+                    : "text-white/55 hover:bg-white/5"
+                }`}
+              >
+                Izohlar
               </button>
             </div>
 
@@ -1014,160 +1278,270 @@ export function ReelsManager({
                 className="max-h-44 w-full rounded-xl bg-black object-contain"
               />
 
-              <label className="block space-y-1.5">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Sarlavha</span>
-                <input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                />
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Caption</span>
-                <textarea
-                  rows={4}
-                  value={editCaption}
-                  onChange={(e) => setEditCaption(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                />
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Mahsulot</span>
-                <select
-                  value={editProductId}
-                  onChange={(e) => {
-                    setEditProductId(e.target.value);
-                    if (e.target.value) setEditShowBuy(true);
-                  }}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                >
-                  <option value="">— Model tanlang —</option>
-                  {productOptions.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {formatSom(p.price)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Musiqa</span>
-                <select
-                  value={editMusicId}
-                  onChange={(e) => setEditMusicId(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                >
-                  <option value="">Musiqasiz</option>
-                  {musicTracks.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.title} — {m.artist}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-white/40">
-                  Musiqa o‘zgarsa saqlashda videoga qayta birlashtiriladi.
-                </p>
-              </label>
-
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={editShowBuy}
-                    onChange={(e) => setEditShowBuy(e.target.checked)}
-                  />
-                  «Sotib olish» tugmasi
-                </label>
-                {editShowBuy && (
+              {detailTab === "edit" && (
+                <>
                   <label className="block space-y-1.5">
-                    <span className="text-xs uppercase tracking-[0.12em] text-white/45">
-                      Tugma matni
-                    </span>
+                    <span className="text-xs uppercase tracking-[0.12em] text-white/45">Sarlavha</span>
                     <input
-                      value={editBuyLabel}
-                      onChange={(e) => setEditBuyLabel(e.target.value)}
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
                       className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                      placeholder="Sotib olish"
                     />
                   </label>
-                )}
-              </div>
 
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={editPublished}
-                  onChange={(e) => setEditPublished(e.target.checked)}
-                />
-                Nashr qilingan (/instagram da ko‘rinsin)
-              </label>
-
-              <div className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Muqova</span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 px-3 py-2 text-xs">
-                    <Upload className="h-3.5 w-3.5" />
-                    Rasm yuklash
-                    <input
-                      type="file"
-                      accept="image/*,.jpg,.jpeg,.png,.webp"
-                      className="hidden"
-                      onChange={(e) => onEditCover(e.target.files?.[0] || null)}
+                  <label className="block space-y-1.5">
+                    <span className="text-xs uppercase tracking-[0.12em] text-white/45">Caption</span>
+                    <textarea
+                      rows={4}
+                      value={editCaption}
+                      onChange={(e) => setEditCaption(e.target.value)}
+                      className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
                     />
                   </label>
-                  {editCoverUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setEditCoverUrl("")}
-                      className="rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"
+
+                  <label className="block space-y-1.5">
+                    <span className="text-xs uppercase tracking-[0.12em] text-white/45">Mahsulot</span>
+                    <select
+                      value={editProductId}
+                      onChange={(e) => {
+                        setEditProductId(e.target.value);
+                        if (e.target.value) setEditShowBuy(true);
+                      }}
+                      className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
                     >
-                      Muqovani olib tashlash
-                    </button>
+                      <option value="">— Model tanlang —</option>
+                      {productOptions.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — {formatSom(p.price)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block space-y-1.5">
+                    <span className="text-xs uppercase tracking-[0.12em] text-white/45">Musiqa</span>
+                    <select
+                      value={editMusicId}
+                      onChange={(e) => setEditMusicId(e.target.value)}
+                      className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                    >
+                      <option value="">Musiqasiz</option>
+                      {musicTracks.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.title} — {m.artist}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-white/40">
+                      Musiqa o‘zgarsa saqlashda videoga qayta birlashtiriladi.
+                    </p>
+                  </label>
+
+                  <div className="space-y-3 rounded-xl border border-white/10 bg-black/30 p-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editShowBuy}
+                        onChange={(e) => setEditShowBuy(e.target.checked)}
+                      />
+                      «Sotib olish» tugmasi
+                    </label>
+                    {editShowBuy && (
+                      <label className="block space-y-1.5">
+                        <span className="text-xs uppercase tracking-[0.12em] text-white/45">
+                          Tugma matni
+                        </span>
+                        <input
+                          value={editBuyLabel}
+                          onChange={(e) => setEditBuyLabel(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                          placeholder="Sotib olish"
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editPublished}
+                      onChange={(e) => setEditPublished(e.target.checked)}
+                    />
+                    Nashr qilingan (/instagram da ko‘rinsin)
+                  </label>
+
+                  <div className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.12em] text-white/45">Muqova</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 px-3 py-2 text-xs">
+                        <Upload className="h-3.5 w-3.5" />
+                        Rasm yuklash
+                        <input
+                          type="file"
+                          accept="image/*,.jpg,.jpeg,.png,.webp"
+                          className="hidden"
+                          onChange={(e) => onEditCover(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      {editCoverUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setEditCoverUrl("")}
+                          className="rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"
+                        >
+                          Muqovani olib tashlash
+                        </button>
+                      )}
+                    </div>
+                    {editCoverUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={editCoverUrl}
+                        alt="Muqova"
+                        className="max-h-32 rounded-lg object-cover"
+                      />
+                    )}
+                  </div>
+
+                  {editMsg && (
+                    <p
+                      className={`text-sm ${
+                        editMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"
+                      }`}
+                    >
+                      {editMsg}
+                    </p>
+                  )}
+                </>
+              )}
+
+              {detailTab === "comments" && (
+                <div className="space-y-3">
+                  {!editing.metaMediaId ? (
+                    <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">
+                      Hali IGga joylanmagan — izohlar yo‘q
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={commentsBusy}
+                          onClick={() => void syncComments()}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 ${commentsBusy ? "animate-spin" : ""}`}
+                          />
+                          Izohlarni yangilash
+                        </button>
+                        <span className="text-[10px] text-white/40">
+                          Graph API · media {editing.metaMediaId.slice(0, 8)}…
+                        </span>
+                      </div>
+
+                      {commentsBusy && comments.length === 0 && (
+                        <p className="text-xs text-white/45">Yuklanmoqda…</p>
+                      )}
+
+                      {comments.length === 0 && !commentsBusy && (
+                        <p className="text-xs text-white/45">
+                          Izoh yo‘q. Yangilang yoki Meta webhook <code className="text-white/70">comments</code>{" "}
+                          fieldini tekshiring.
+                        </p>
+                      )}
+
+                      <ul className="space-y-2">
+                        {comments.map((c) => (
+                          <li
+                            key={c.id || c.commentId}
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="text-xs font-semibold text-white">
+                                  @{c.username || "user"}
+                                </div>
+                                <div className="text-[10px] text-white/40">
+                                  {formatCommentTime(c.postedAt || c.createdAt)}
+                                </div>
+                              </div>
+                              {!c.ourReplyText && (
+                                <button
+                                  type="button"
+                                  disabled={Boolean(replyBusyId)}
+                                  onClick={() => void aiReplyComment(c.commentId)}
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-lf-red/90 px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-50"
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  {replyBusyId === c.commentId ? "…" : "AI javob"}
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-sm text-white/90 whitespace-pre-wrap">{c.text}</p>
+                            {c.ourReplyText && (
+                              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-2">
+                                <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300/90">
+                                  Bizning javob
+                                </div>
+                                <p className="mt-1 text-xs text-emerald-50/95 whitespace-pre-wrap">
+                                  {c.ourReplyText}
+                                </p>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+
+                  {commentsMsg && (
+                    <p
+                      className={`text-sm ${
+                        commentsMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"
+                      }`}
+                    >
+                      {commentsMsg}
+                    </p>
                   )}
                 </div>
-                {editCoverUrl && (
-                  <img
-                    src={editCoverUrl}
-                    alt="Muqova"
-                    className="max-h-32 rounded-lg object-cover"
-                  />
-                )}
-              </div>
-
-              {editMsg && (
-                <p
-                  className={`text-sm ${
-                    editMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"
-                  }`}
-                >
-                  {editMsg}
-                </p>
               )}
             </div>
 
             <div className="flex gap-2 border-t border-white/10 px-4 py-3">
               <button
                 type="button"
-                disabled={editBusy}
+                disabled={editBusy || Boolean(replyBusyId)}
                 onClick={closeEdit}
                 className="flex-1 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
               >
-                Bekor
+                Yopish
               </button>
-              <button
-                type="button"
-                disabled={editBusy}
-                onClick={saveEdit}
-                className="flex-1 rounded-xl bg-lf-red px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
-              >
-                {editBusy ? "Saqlanmoqda…" : "Saqlash"}
-              </button>
+              {detailTab === "edit" && (
+                <button
+                  type="button"
+                  disabled={editBusy}
+                  onClick={saveEdit}
+                  className="flex-1 rounded-xl bg-lf-red px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                >
+                  {editBusy ? "Saqlanmoqda…" : "Saqlash"}
+                </button>
+              )}
+              {detailTab === "comments" && editing.metaMediaId && (
+                <button
+                  type="button"
+                  disabled={commentsBusy}
+                  onClick={() => void syncComments()}
+                  className="flex-1 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                >
+                  {commentsBusy ? "Yangilanmoqda…" : "Yangilash"}
+                </button>
+              )}
             </div>
           </aside>
         </div>
       )}
+      </div>
     </div>
   );
 }

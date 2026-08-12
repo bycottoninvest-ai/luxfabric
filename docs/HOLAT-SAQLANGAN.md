@@ -160,9 +160,13 @@ Publish muvaffaqiyatida Admin da success panel + nusxalanadigan URL. Shopping/Co
 
 ### C) AI izoh / DM
 - Webhook `/api/instagram`: `comments` + DM; bir izohga bir marta (`InstagramCommentReply`)
+- Izohlar DB: `InstagramComment` (webhook + Graph sync) · migrate `20260813050000_instagram_comments`
+- Admin Reels: chap **Reels arxiv** → Reel ochiladi → **Izohlar** tab · «Izohlarni yangilash» · «AI javob»
+- Sozlama: `instagram_ai_comments` (Meta/DM: «AI izoh javobi: yoqilgan/o‘chiq») + `instagram_enabled`
 - `OPENAI_API_KEY` bo‘lsa ChatGPT, yo‘q bo‘lsa shablon (`src/lib/shop-ai-reply.ts`)
 - Meta App → Webhooks: `messages` + **`comments`** (va/yoki live_comments) subscribe qilish kerak
-- Graph: `POST /{comment-id}/replies`
+- Graph: `GET /{media-id}/comments`, `POST /{comment-id}/replies`
+- API: `/api/admin/instagram/comments` (GET reelId, POST sync/reply)
 
 ---
 
@@ -175,8 +179,10 @@ Publish muvaffaqiyatida Admin da success panel + nusxalanadigan URL. Shopping/Co
 - [x] **Meta/Instagram holat PDF** → `docs/private/` (parolli; gitignore)
 - [x] **`/i/[slug]` bir-bosishda sotib olish** + sharhlar MVP
 - [ ] Telefon/ISP da domen ochilishini tasdiqlash
-- [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy — AI izoh/sharh uchun)
+- [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy — AI izoh/sharh uchun; Vercel Env)
 - [ ] Webhook Meta dashboardda **comments** field + yakuniy tasdiq
+- [x] Admin Reels arxiv side rail + per-reel izohlar + AI javob tugmasi
+- [x] `instagram_ai_comments` toggle (Meta/DM)
 - [x] Admin publish: caption CTA yuqorida + avto birinchi izoh + success UI / nusxa URL
 - [x] Kelishilgan tez-xarid: `/i?from=ig` + bio `/instagram` + izoh retry mustahkam
 - [ ] Birinchi real Reel **Admin orqali** qayta joylash (izohni tekshirish)

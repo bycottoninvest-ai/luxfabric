@@ -211,6 +211,28 @@ model InstagramCommentReply {
   createdAt   DateTime @default(now())
 }
 
+/// Instagram Reel izohlari (webhook + Graph sync) — admin panelda ko‘rish
+model InstagramComment {
+  id           String         @id @default(cuid())
+  commentId    String         @unique
+  mediaId      String?
+  reelId       String?
+  reel         InstagramReel? @relation(fields: [reelId], references: [id], onDelete: SetNull)
+  username     String         @default("")
+  fromId       String?
+  text         String
+  parentId     String?
+  postedAt     DateTime?
+  ourReplyText String?
+  ourReplyId   String?
+  repliedAt    DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([mediaId])
+  @@index([reelId, postedAt])
+}
+
 model OrderItem {
   id        String         @id @default(cuid())
   quantity  Int
@@ -281,6 +303,7 @@ model InstagramReel {
   music          InstagramMusic? @relation(fields: [musicId], references: [id])
   productId      String?
   product        Product?        @relation(fields: [productId], references: [id])
+  comments       InstagramComment[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }

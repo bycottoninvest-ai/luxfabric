@@ -49,6 +49,7 @@ export function InstagramPanel({
   }, [searchParams, router]);
 
   const enabled = form.instagram_enabled === "true";
+  const aiComments = (form.instagram_ai_comments || "true") !== "false";
   const webhook = useMemo(
     () => `${(form.app_domain || domain || "http://localhost:3000").replace(/\/$/, "")}/api/instagram`,
     [form.app_domain, domain]
@@ -81,6 +82,11 @@ export function InstagramPanel({
   async function toggleEnabled() {
     const next = enabled ? "false" : "true";
     await save({ instagram_enabled: next });
+  }
+
+  async function toggleAiComments() {
+    const next = aiComments ? "false" : "true";
+    await save({ instagram_ai_comments: next });
   }
 
   async function saveCatalogId(productId: string) {
@@ -168,18 +174,42 @@ export function InstagramPanel({
           <div className="mt-1 text-xs text-white/45">
             @{form.instagram_username || "luxfabricshop.uz"}
           </div>
+          <div
+            className={`mt-2 text-sm font-medium ${
+              enabled && aiComments ? "text-emerald-300" : "text-white/50"
+            }`}
+          >
+            AI izoh javobi: {enabled && aiComments ? "yoqilgan" : "o‘chiq"}
+          </div>
+          <p className="mt-1 text-[11px] text-white/40">
+            Webhook <code className="text-white/60">comments</code> + Instagram yoqilgan + AI toggle.
+            ChatGPT uchun Vercelda <code className="text-white/60">OPENAI_API_KEY</code> (yo‘q bo‘lsa
+            shablon).
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={toggleEnabled}
-          disabled={loading}
-          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ${
-            enabled ? "bg-emerald-500/20 text-emerald-300" : "bg-lf-red text-white"
-          }`}
-        >
-          <Power className="h-4 w-4" />
-          {enabled ? "O‘chirish" : "Instagramni yoqish"}
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={toggleEnabled}
+            disabled={loading}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ${
+              enabled ? "bg-emerald-500/20 text-emerald-300" : "bg-lf-red text-white"
+            }`}
+          >
+            <Power className="h-4 w-4" />
+            {enabled ? "O‘chirish" : "Instagramni yoqish"}
+          </button>
+          <button
+            type="button"
+            onClick={toggleAiComments}
+            disabled={loading || !enabled}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-40 ${
+              aiComments ? "bg-pink-500/20 text-pink-200" : "bg-white/10 text-white/70"
+            }`}
+          >
+            AI izoh: {aiComments ? "yoqilgan" : "o‘chiq"}
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-lf-red/35 bg-lf-red/10 p-4 space-y-3">
@@ -310,7 +340,26 @@ export function InstagramPanel({
         </section>
 
         <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <h2 className="font-semibold">2. AI DM avtojavoblar (panelda boshqarasiz)</h2>
+          <h2 className="font-semibold">2. AI DM + izoh avtojavoblar</h2>
+          <label className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={aiComments}
+              onChange={(e) =>
+                setForm({ ...form, instagram_ai_comments: e.target.checked ? "true" : "false" })
+              }
+            />
+            <span>
+              <span className="font-medium">AI izoh javobi (webhook)</span>
+              <span className="mt-0.5 block text-[11px] text-white/45">
+                Yangi IG izohga avtomatik javob. Admin Reels → Izohlar → «AI javob» ham shu kalitdan
+                foydalanadi (manual tugma doim ishlaydi). Meta da fields:{" "}
+                <code className="text-white/70">messages</code>,{" "}
+                <code className="text-white/70">comments</code>.
+              </span>
+            </span>
+          </label>
           {area("instagram_dm_welcome", "Salomlashuv")}
           {area("instagram_auto_reply_price", "Narx so‘ralganda")}
           {area("instagram_auto_reply_size", "O‘lcham so‘ralganda")}
