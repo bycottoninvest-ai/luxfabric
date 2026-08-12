@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS, formatSom } from "@/lib/utils";
+import { CourierTrackingForm } from "@/components/admin/CourierTrackingForm";
 import { OrderStatusActions } from "@/components/admin/OrderStatusActions";
 
 export default async function AdminOrdersPage() {
@@ -111,9 +112,12 @@ export default async function AdminOrdersPage() {
                 })}
               </div>
 
-              {/* 4-qator: status + linklar */}
+              {/* 4-qator: status + trek + linklar */}
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <OrderStatusActions orderId={o.id} current={o.status} />
+                {o.deliveryType !== "PICKUP" && (
+                  <CourierTrackingForm orderId={o.id} initialCode={o.courierTracking} />
+                )}
                 <div className="flex gap-2 text-[10px]">
                   <Link href="/admin/scan" className="text-lf-red hover:underline">
                     Skaner

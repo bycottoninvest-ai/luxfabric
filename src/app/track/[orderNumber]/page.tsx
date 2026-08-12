@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MapPin, Package, Truck } from "lucide-react";
+import { Check, ExternalLink, MapPin, Package, Store } from "lucide-react";
 import { StoreShell } from "@/components/StoreShell";
+import { TrackLiveRefresh } from "@/components/TrackLiveRefresh";
 import { prisma } from "@/lib/prisma";
+import {
+  buildCourierTrackingUrl,
+  buildCustomerTimeline,
+  currentLocationLabel,
+  deliveryTypeLabel,
+  resolveCourierMeta,
+} from "@/lib/order-tracking";
 import { ORDER_STATUS, formatSom } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 export default async function TrackPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   const { orderNumber } = await params;
@@ -19,58 +29,181 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
   if (!order) notFound();
 
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.NEW;
-  const last = order.events[order.events.length - 1];
+  const timeline = buildCustomerTimeline(order);
+  const location = currentLocationLabel(order);
+  const courierMeta = resolveCourierMeta(order);
+  const trackUrl = buildCourierTrackingUrl(
+    courierMeta?.code || order.courierCode || order.courierCompanyId,
+    order.courierTracking
+  );
+  const isPickup = order.deliveryType === "PICKUP";
 
   return (
     <StoreShell>
+      <TrackLiveRefresh />
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lf-muted">Tracking</p>
           <h1 className="mt-1 text-xl font-bold">{order.orderNumber}</h1>
         </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${st.color}`}>{st.label}</span>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${st.color}`}>
+          {st.label}
+        </span>
       </div>
 
-      <div className="relative mt-4 overflow-hidden rounded-3xl border border-lf-border bg-white shadow-sm">
-        <div className="relative aspect-[16/10] bg-gradient-to-br from-lf-pink via-white to-lf-bg p-4">
-          <div className="absolute inset-6 rounded-2xl border border-dashed border-lf-red/25" />
-          <div
-            className="absolute h-3.5 w-3.5 rounded-full bg-lf-red shadow-[0_0_20px_rgba(225,29,46,0.8)]"
-            style={{ left: "28%", top: "42%" }}
-          />
-          <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-lf-border bg-white/95 p-3 shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Truck className="h-4 w-4 text-lf-red" />
-              Live GPS · {last?.note || "Yangilanmoqda"}
+      {/* Hozirgi joy — status asosida (yolg‘on GPS emas) */}
+      <div className="mt-4 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lf-pink text-lf-red">
+            {isPickup ? <Store className="h-5 w-5" /> : <MapPin className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-lf-muted">
+              Hozirgi joy
             </div>
-            <div className="mt-1 flex items-center gap-2 text-xs text-lf-muted">
-              <MapPin className="h-3.5 w-3.5" />
-              {order.city}, {order.address}
+            <div className="mt-0.5 text-sm font-semibold text-lf-text">{location}</div>
+            <div className="mt-1 text-xs text-lf-muted">
+              {deliveryTypeLabel(order.deliveryType)}
+              {isPickup
+                ? ""
+                : ` · ${order.city}${order.address ? `, ${order.address}` : ""}`}
             </div>
           </div>
         </div>
+
+        {/* Progress strip */}
+        <div className="mt-4 flex gap-1">
+          {timeline.map((step) => (
+            <div
+              key={step.id}
+              className={`h-1.5 flex-1 rounded-full ${
+                step.state === "done"
+                  ? "bg-emerald-500"
+                  : step.state === "current"
+                    ? "bg-lf-red"
+                    : "bg-lf-border"
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
+      {/* Aniq status timeline */}
       <div className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
         <h2 className="mb-4 text-sm font-bold">Holatlar</h2>
-        <ol className="space-y-4">
-          {order.events.map((ev, idx) => (
-            <li key={ev.id} className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-lf-red" />
-                {idx < order.events.length - 1 && <span className="mt-1 w-px flex-1 bg-lf-border" />}
-              </div>
-              <div className="pb-2">
-                <div className="text-sm font-semibold">{ev.title}</div>
-                {ev.note && <div className="text-xs text-lf-muted">{ev.note}</div>}
-                <div className="mt-1 text-[11px] text-lf-muted">
-                  {new Date(ev.createdAt).toLocaleString("uz-UZ")}
+        <ol className="space-y-0">
+          {timeline.map((step, idx) => {
+            const isLast = idx === timeline.length - 1;
+            return (
+              <li key={step.id} className="flex gap-3">
+                <div className="flex flex-col items-center">
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
+                      step.state === "done"
+                        ? "bg-emerald-500 text-white"
+                        : step.state === "current"
+                          ? "bg-lf-red text-white ring-4 ring-lf-red/15"
+                          : "bg-lf-border text-lf-muted"
+                    }`}
+                  >
+                    {step.state === "done" ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : idx + 1}
+                  </span>
+                  {!isLast && (
+                    <span
+                      className={`my-1 w-px flex-1 min-h-[1.25rem] ${
+                        step.state === "done" ? "bg-emerald-400" : "bg-lf-border"
+                      }`}
+                    />
+                  )}
                 </div>
-              </div>
-            </li>
-          ))}
+                <div className={`pb-4 ${step.state === "upcoming" ? "opacity-45" : ""}`}>
+                  <div
+                    className={`text-sm font-semibold ${
+                      step.state === "current" ? "text-lf-red" : "text-lf-text"
+                    }`}
+                  >
+                    {step.title}
+                  </div>
+                  {step.hint && <div className="mt-0.5 text-xs text-lf-muted">{step.hint}</div>}
+                  {step.at && (
+                    <div className="mt-1 text-[11px] text-lf-muted">
+                      {new Date(step.at).toLocaleString("uz-UZ")}
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </div>
+
+      {/* O‘zi olib ketish: ombor + xabar */}
+      {isPickup && order.warehouse && (
+        <div className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Store className="h-4 w-4 text-lf-red" />
+            Olib ketish manzili
+          </div>
+          <div className="mt-2 text-sm font-semibold">{order.warehouse.name}</div>
+          <div className="mt-1 text-xs text-lf-muted">
+            {order.warehouse.city}, {order.warehouse.address}
+          </div>
+          {order.warehouse.phone && (
+            <div className="mt-1 text-xs text-lf-muted">Tel: {order.warehouse.phone}</div>
+          )}
+          <p className="mt-3 rounded-2xl bg-lf-pink/60 px-3 py-2 text-xs text-lf-text">
+            Buyurtma tayyor bo‘lganda{" "}
+            {order.notifyChannel === "TELEGRAM"
+              ? "Telegram"
+              : order.notifyChannel === "BOTH"
+                ? "SMS va Telegram"
+                : order.notifyChannel === "NONE"
+                  ? "do‘kon"
+                  : "SMS"}{" "}
+            orqali xabar beriladi
+            {order.telegramUsername && order.notifyChannel !== "SMS" && order.notifyChannel !== "NONE"
+              ? ` (@${order.telegramUsername.replace(/^@/, "")})`
+              : ""}
+            . Keyin shu ombordan olib ketishingiz mumkin.
+          </p>
+        </div>
+      )}
+
+      {/* Kuryer + rasmiy tracking */}
+      {!isPickup && (courierMeta || order.courierTracking) && (
+        <div className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
+          <div className="text-sm font-bold">Kuryer</div>
+          <div className="mt-1 text-sm font-semibold">
+            {courierMeta?.name || order.courierLabel || "Kuryer"}
+          </div>
+          {order.courierBranchLabel && (
+            <div className="mt-1 text-xs text-lf-muted">Punkt: {order.courierBranchLabel}</div>
+          )}
+          {order.courierTracking ? (
+            <div className="mt-2 text-xs text-lf-muted">
+              Trek-kod: <span className="font-mono font-semibold text-lf-text">{order.courierTracking}</span>
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-lf-muted">
+              Trek-kod hali kiritilmagan — kuryerga topshirilganda paydo bo‘ladi.
+            </div>
+          )}
+          {trackUrl && (
+            <a
+              href={trackUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-lf-red px-3 py-2 text-xs font-semibold text-white"
+            >
+              Kuryer saytida kuzatish
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+          <p className="mt-2 text-[11px] text-lf-muted">
+            Jonli GPS kuryer API kaliti talab qiladi. Kuzatuv: statuslar + rasmiy trekod.
+          </p>
+        </div>
+      )}
 
       <div className="mt-3 space-y-2 rounded-3xl border border-lf-border bg-white p-4 text-sm shadow-sm">
         <div className="flex items-center gap-2 font-bold">
@@ -84,20 +217,32 @@ export default async function TrackPage({ params }: { params: Promise<{ orderNum
             <span>{formatSom(item.price * item.quantity)}</span>
           </div>
         ))}
-        {order.warehouse && (
+        {order.warehouse && !isPickup && (
           <div className="pt-2 text-xs text-lf-muted">Ombor: {order.warehouse.name}</div>
-        )}
-        {order.courierLabel && (
-          <div className="text-xs text-lf-muted">
-            Kuryer: {order.courierLabel}
-            {order.courierTracking ? ` · Trek: ${order.courierTracking}` : ""}
-          </div>
         )}
         <div className="flex justify-between border-t border-lf-border pt-2 font-bold text-lf-text">
           <span>Jami</span>
           <span>{formatSom(order.total)}</span>
         </div>
       </div>
+
+      {/* Ixtiyoriy: xom event tarixi (agar timeline dan boshqa yozuvlar bo‘lsa) */}
+      {order.events.length > 1 && (
+        <details className="mt-3 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
+          <summary className="cursor-pointer text-sm font-bold">Batafsil tarix</summary>
+          <ol className="mt-3 space-y-3">
+            {[...order.events].reverse().map((ev) => (
+              <li key={ev.id} className="text-sm">
+                <div className="font-semibold">{ev.title}</div>
+                {ev.note && <div className="text-xs text-lf-muted">{ev.note}</div>}
+                <div className="mt-0.5 text-[11px] text-lf-muted">
+                  {new Date(ev.createdAt).toLocaleString("uz-UZ")}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
 
       <Link href="/orders" className="mt-4 block text-center text-sm font-semibold text-lf-red">
         Buyurtmalarimga qaytish

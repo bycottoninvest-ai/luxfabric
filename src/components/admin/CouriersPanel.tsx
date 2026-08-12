@@ -51,6 +51,7 @@ export function CouriersPanel({
   const router = useRouter();
   const [list, setList] = useState(couriers);
   const [selectedCourier, setSelectedCourier] = useState(couriers.find((c) => c.isActive)?.id || "");
+  const [trackingByOrder, setTrackingByOrder] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
 
@@ -71,10 +72,14 @@ export function CouriersPanel({
     }
     setBusy(orderId);
     setMsg("");
+    const tracking = (trackingByOrder[orderId] || "").trim();
     const res = await fetch(`/api/admin/orders/${orderId}/handover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ courierId: selectedCourier }),
+      body: JSON.stringify({
+        courierId: selectedCourier,
+        ...(tracking ? { tracking } : {}),
+      }),
     });
     const data = await res.json();
     setBusy(null);
@@ -180,6 +185,15 @@ export function CouriersPanel({
                     </div>
                     <div className="mt-1 text-xs text-lf-muted">{o.itemsLabel}</div>
                     <div className="mt-1 text-[11px] text-amber-300">Status: {o.status}</div>
+                    <input
+                      type="text"
+                      value={trackingByOrder[o.id] || ""}
+                      onChange={(e) =>
+                        setTrackingByOrder((prev) => ({ ...prev, [o.id]: e.target.value }))
+                      }
+                      placeholder="Kuryer trek-kodi (ixtiyoriy)"
+                      className="mt-2 w-full max-w-xs rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-xs text-white placeholder:text-white/35"
+                    />
                   </div>
                   <button
                     type="button"

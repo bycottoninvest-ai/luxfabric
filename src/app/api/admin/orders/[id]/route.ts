@@ -8,12 +8,38 @@ const schema = z.object({
   status: z.string().optional(),
   note: z.string().optional(),
   warehouseId: z.string().nullable().optional(),
+  /** Kuryer rasmiy trek-kodi (mijoz tracking sahifasida ko‘rinadi) */
+  courierTracking: z.string().nullable().optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = schema.parse(await req.json());
+
+    // Faqat trek-kod
+    if (body.courierTracking !== undefined && !body.status && body.warehouseId === undefined) {
+      const tracking = (body.courierTracking || "").trim() || null;
+      const current = await prisma.order.findUnique({ where: { id } });
+      if (!current) return NextResponse.json({ error: "Buyurtma topilmadi" }, { status: 404 });
+
+      const order = await prisma.order.update({
+        where: { id },
+        data: {
+          courierTracking: tracking,
+          events: tracking
+            ? {
+                create: {
+                  status: current.status,
+                  title: "Trek-kod yangilandi",
+                  note: `Trek: ${tracking}`,
+                },
+              }
+            : undefined,
+        },
+      });
+      return NextResponse.json({ ok: true, courierTracking: order.courierTracking });
+    }
 
     // Faqat jo‘natish omborini o‘zgartirish
     if (body.warehouseId !== undefined && !body.status) {
@@ -93,22 +119,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         }
       }
 
+      const pickupReady =
+        status === "PACKED" && current.deliveryType === "PICKUP" && !body.note;
+      const defaultNote = pickupReady
+        ? `Olib ketishga tayyor · xabar: ${current.notifyChannel}${
+            current.telegramUsername ? ` · @${current.telegramUsername.replace(/^@/, "")}` : ""
+          }`
+        : status === "CANCELLED" && current.stockDeducted
+          ? "Bekor · stock omborga qaytarildi"
+          : "Admin panel orqali yangilandi";
+
       return tx.order.update({
         where: { id },
         data: {
           status,
           ...(body.warehouseId !== undefined ? { warehouseId: body.warehouseId } : {}),
+          ...(body.courierTracking !== undefined
+            ? { courierTracking: (body.courierTracking || "").trim() || null }
+            : {}),
           ...(status === "DELIVERED" ? { paymentStatus: "PAID" } : {}),
           ...(status === "CANCELLED" ? { stockDeducted: false } : {}),
           events: {
             create: {
               status,
-              title,
-              note:
-                body.note ||
-                (status === "CANCELLED" && current.stockDeducted
-                  ? "Bekor · stock omborga qaytarildi"
-                  : "Admin panel orqali yangilandi"),
+              title: pickupReady ? "Olib ketishga tayyor" : title,
+              note: body.note || defaultNote,
             },
           },
         },
