@@ -9,6 +9,7 @@ import {
   resolveIgUserId,
 } from "@/lib/instagram-graph";
 import { getSetting, setSettings } from "@/lib/settings";
+import { buildIgPublishCaption, productBuyUrl } from "@/lib/ig-caption";
 
 export async function GET(req: Request) {
   const action = new URL(req.url).searchParams.get("action") || "status";
@@ -69,12 +70,18 @@ export async function POST(req: Request) {
       });
       if (!reel) return NextResponse.json({ error: "Reel topilmadi" }, { status: 404 });
 
-      const domain = ((await getSetting("app_domain")) || "").replace(/\/$/, "");
-      const shopLine =
+      const domain = await getSetting("app_domain", "");
+      const buyUrl =
         reel.product && domain
-          ? `\n\n🛒 Sotib olish: ${domain}/i/${reel.product.slug}`
-          : "";
-      const caption = `${reel.caption || reel.title}${shopLine}`.trim();
+          ? productBuyUrl(domain, reel.product.slug)
+          : reel.product
+            ? productBuyUrl(null, reel.product.slug)
+            : null;
+      const caption = buildIgPublishCaption({
+        caption: reel.caption || reel.title,
+        buyUrl,
+        buyLabel: reel.buyButtonLabel || "Sotib olish",
+      });
 
       const published = await publishReelToInstagram({
         videoUrl: reel.videoUrl,
@@ -114,6 +121,11 @@ export async function POST(req: Request) {
     });
     if (!story) return NextResponse.json({ error: "Story topilmadi" }, { status: 404 });
 
+    const domain = await getSetting("app_domain", "");
+    const storyBuyUrl = story.product
+      ? productBuyUrl(domain || null, story.product.slug)
+      : null;
+
     const published = await publishStoryToInstagram({
       mediaUrl: story.mediaUrl,
       mediaType: story.mediaType === "video" ? "video" : "image",
@@ -141,10 +153,8 @@ export async function POST(req: Request) {
       type: "story",
       mediaId: published.mediaId,
       message:
-        "Story Instagramga joylandi ✓ (link sticker API da yo‘q — havolani Storyda qo‘lda qo‘shing yoki bio/link ishlating)",
-      tip: story.product
-        ? `Havola: /i/${story.product.slug}`
-        : undefined,
+        "Story Instagramga joylandi ✓ (Meta Graph link sticker bermaydi — havolani Storyda qo‘lda qo‘shing yoki bio/link ishlating)",
+      tip: storyBuyUrl || undefined,
     });
   } catch (err) {
     const message =

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { formatSom } from "@/lib/utils";
+import { buildIgTemplateCaption, productBuyUrl } from "@/lib/ig-caption";
+import { getSetting } from "@/lib/settings";
 
 const schema = z.object({
   productId: z.string().min(1),
@@ -81,7 +83,7 @@ Ranglar: ${colors.join(", ") || "—"}
 O‘lchamlar: ${sizes.join(", ") || "—"}
 
 JSON qaytar (faqat JSON): {"title":"...","caption":"..."}
-title: 3–7 so‘z. caption: 1–2 jumla + emoji, Soft sell, «Sotib olish»ga chorlov.`;
+title: 3–7 so‘z. caption: BIRINCHI qator — qisqa hook (1 jumla). IKKINCHI qator — «🛒 Sotib olish» chorlovi (URL yozma). Keyin ixtiyoriy rang/o‘lcham. Soft sell, emoji.`;
 
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -110,7 +112,7 @@ title: 3–7 so‘z. caption: 1–2 jumla + emoji, Soft sell, «Sotib olish»ga 
               configured: true,
               model,
               title: String(parsed.title).slice(0, 80),
-              caption: String(parsed.caption).slice(0, 400),
+              caption: String(parsed.caption).slice(0, 500),
               suggestedMusicId,
             });
           }
@@ -120,14 +122,18 @@ title: 3–7 so‘z. caption: 1–2 jumla + emoji, Soft sell, «Sotib olish»ga 
       }
     }
 
+    const domain = await getSetting("app_domain", "");
+    const buyUrl = productBuyUrl(domain || null, product.slug);
     const title = `${product.name} · yangi`.slice(0, 60);
-    const parts = [
-      product.description?.trim().slice(0, 120) ||
-        `${product.name} — ${product.fabric || "premium mato"}.`,
-      colors.length ? `Rang: ${colors.join(", ")}.` : "",
-      sizes.length ? `O‘lcham: ${sizes.join(" / ")}.` : "",
-      `Narx ${price}. 👇 Sotib olish`,
-    ].filter(Boolean);
+    const caption = buildIgTemplateCaption({
+      name: product.name,
+      priceLabel: price,
+      description: product.description,
+      fabric: product.fabric,
+      colors,
+      sizes,
+      buyUrl,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -135,7 +141,7 @@ title: 3–7 so‘z. caption: 1–2 jumla + emoji, Soft sell, «Sotib olish»ga 
       configured,
       model: configured ? model : null,
       title,
-      caption: parts.join(" "),
+      caption,
       suggestedMusicId,
       hint: configured
         ? "ChatGPT javob bermadi — mahsulot shabloni ishlatildi"

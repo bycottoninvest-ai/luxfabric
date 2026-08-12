@@ -204,7 +204,9 @@ export function ReelsManager({
       const p = productOptions.find((x) => x.id === id);
       if (p) {
         setTitle(`${p.name} · yangi`);
-        setCaption(`${p.name} — ${formatSom(p.price)}. 👇 Sotib olish`);
+        setCaption(
+          `${p.name} — ${formatSom(p.price)}.\n\n👇 Sotib olish\n\n(Havola Instagramga joylashda avtomatik qo‘shiladi)`
+        );
         setMsg("Matn yozildi ✓ (lokal). Server xatosi: " + (e instanceof Error ? e.message : ""));
       } else {
         setMsg(e instanceof Error ? e.message : "AI xatosi");

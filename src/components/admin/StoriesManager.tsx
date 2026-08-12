@@ -62,7 +62,9 @@ export function StoriesManager({
     if (!p) return;
     if (!title.trim()) setTitle(p.name);
     if (!caption.trim()) {
-      setCaption(`${p.name} — ${formatSom(p.price)}. Instagram Story → Sotib olish 👇`);
+      setCaption(
+        `${p.name} — ${formatSom(p.price)}.\n\n👇 Sotib olish\n\n(Meta Storyda link sticker qo‘lda; sayt previewda tugma ishlaydi)`
+      );
     }
   }
 
