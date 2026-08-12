@@ -4,6 +4,9 @@ import { getCategories, getFeaturedProducts } from "@/lib/catalog";
 import Link from "next/link";
 import { Play } from "lucide-react";
 
+/** Katalog yangilanishi — Vercel prerender keshi eski 6 ta mahsulotni ushlab qolmasin. */
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [products, categories] = await Promise.all([getFeaturedProducts(), getCategories()]);
 

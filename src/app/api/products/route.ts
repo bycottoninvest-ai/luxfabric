@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -44,6 +45,22 @@ function slugify(input: string) {
     .slice(0, 48);
 }
 
+function uniqueSku(colorHex: string, size: string) {
+  const hex = colorHex.replace("#", "").slice(0, 6).toUpperCase() || "XXX";
+  const sizePart = size.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toUpperCase() || "SZ";
+  const rand = randomBytes(3).toString("hex").toUpperCase();
+  return `LF-${hex}-${sizePart}-${rand}`.slice(0, 40);
+}
+
+function formatError(err: unknown): string {
+  if (err instanceof z.ZodError) {
+    const first = err.issues[0];
+    return first ? `${first.path.join(".") || "maydon"}: ${first.message}` : "Validation xato";
+  }
+  if (err instanceof Error) return err.message;
+  return "Xatolik";
+}
+
 export async function POST(req: Request) {
   try {
     const body = schema.parse(await req.json());
@@ -64,14 +81,14 @@ export async function POST(req: Request) {
     }
 
     const slugBase = slugify(body.name) || `product-${Date.now()}`;
-    const slug = `${slugBase}-${Math.floor(Math.random() * 999)}`;
-    const warehouses = await prisma.warehouse.findMany();
+    const slug = `${slugBase}-${randomBytes(3).toString("hex")}`;
+    const warehouses = await prisma.warehouse.findMany({ where: { isActive: true } });
 
     const variantCreates = [];
     for (const c of body.colors) {
       for (const size of sizes) {
         variantCreates.push({
-          sku: `${slug.slice(0, 8)}-${c.colorHex.replace("#", "")}-${size}`.toUpperCase().slice(0, 40),
+          sku: uniqueSku(c.colorHex, size),
           color: c.color,
           colorHex: c.colorHex,
           size,
@@ -110,16 +127,20 @@ export async function POST(req: Request) {
       include: { variants: true, images: true },
     });
 
+    const stockRows = [];
     for (const variant of product.variants) {
       for (const wh of warehouses) {
-        await prisma.warehouseStock.create({
-          data: {
-            warehouseId: wh.id,
-            variantId: variant.id,
-            quantity: wh.isCentral ? body.stockCentral : body.stockBranch,
-          },
+        const quantity = wh.isCentral ? body.stockCentral : body.stockBranch;
+        if (quantity <= 0 && !wh.isCentral) continue;
+        stockRows.push({
+          warehouseId: wh.id,
+          variantId: variant.id,
+          quantity,
         });
       }
+    }
+    if (stockRows.length > 0) {
+      await prisma.warehouseStock.createMany({ data: stockRows });
     }
 
     return NextResponse.json({
@@ -131,10 +152,7 @@ export async function POST(req: Request) {
       distributedTo: ["website", "warehouse", "analytics", "telegram-ready", "instagram-ready"],
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Xatolik" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: formatError(err) }, { status: 400 });
   }
 }
 
