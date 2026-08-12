@@ -56,3 +56,6 @@ next-env.d.ts
 
 # private recovery docs (passwords) — never commit
 /docs/private/
+
+.vercel
+.env*

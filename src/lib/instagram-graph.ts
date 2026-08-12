@@ -1,11 +1,14 @@
 import { getSetting, getAppUrl } from "@/lib/settings";
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+const GRAPH_FB = "https://graph.facebook.com/v21.0";
+const GRAPH_IG = "https://graph.instagram.com/v21.0";
 
 export type IgCredentials = {
   pageToken: string;
   igUserId: string;
   publicBase: string;
+  /** graph.facebook.com (Page token) yoki graph.instagram.com (IG Login token) */
+  graphBase: string;
 };
 
 export class IgPublishError extends Error {
@@ -15,6 +18,137 @@ export class IgPublishError extends Error {
   }
 }
 
+type GraphMe = {
+  id?: string;
+  username?: string;
+  name?: string;
+  account_type?: string;
+  user_id?: string;
+  instagram_business_account?: { id?: string };
+  error?: { message?: string; code?: number };
+};
+
+async function graphGet(base: string, path: string, token: string) {
+  const sep = path.includes("?") ? "&" : "?";
+  const res = await fetch(
+    `${base}${path}${sep}access_token=${encodeURIComponent(token)}`
+  );
+  const data = (await res.json()) as GraphMe;
+  return { res, data };
+}
+
+/** Token Page yoki IG Login ekanini aniqlab, IG user id + graph base qaytaradi */
+export async function resolveIgAccess(token: string, preferredIgUserId?: string) {
+  const preferred = preferredIgUserId?.trim() || "";
+
+  // 1) Saqlangan IG ID + Facebook Graph (Page Access Token)
+  if (preferred) {
+    const fb = await graphGet(
+      GRAPH_FB,
+      `/${preferred}?fields=id,username,name,account_type`,
+      token
+    );
+    if (fb.res.ok && !fb.data.error && fb.data.id) {
+      return {
+        igUserId: fb.data.id,
+        graphBase: GRAPH_FB,
+        username: fb.data.username || null,
+        name: fb.data.name || null,
+        accountType: fb.data.account_type || null,
+      };
+    }
+
+    // 2) Saqlangan IG ID + Instagram Graph (Instagram Login token)
+    const ig = await graphGet(
+      GRAPH_IG,
+      `/${preferred}?fields=id,username,name,account_type`,
+      token
+    );
+    if (ig.res.ok && !ig.data.error && ig.data.id) {
+      return {
+        igUserId: ig.data.id,
+        graphBase: GRAPH_IG,
+        username: ig.data.username || null,
+        name: ig.data.name || null,
+        accountType: ig.data.account_type || null,
+      };
+    }
+  }
+
+  // 3) Instagram Login: /me
+  const igMe = await graphGet(GRAPH_IG, `/me?fields=user_id,username,name,account_type`, token);
+  if (igMe.res.ok && !igMe.data.error) {
+    const id = igMe.data.user_id || igMe.data.id;
+    if (id) {
+      return {
+        igUserId: id,
+        graphBase: GRAPH_IG,
+        username: igMe.data.username || null,
+        name: igMe.data.name || null,
+        accountType: igMe.data.account_type || null,
+      };
+    }
+  }
+
+  // 4) Page token: /me?fields=instagram_business_account
+  const pageMe = await graphGet(GRAPH_FB, `/me?fields=instagram_business_account`, token);
+  if (pageMe.res.ok && !pageMe.data.error) {
+    const id = pageMe.data.instagram_business_account?.id;
+    if (id) {
+      const profile = await graphGet(
+        GRAPH_FB,
+        `/${id}?fields=id,username,name,account_type`,
+        token
+      );
+      return {
+        igUserId: id,
+        graphBase: GRAPH_FB,
+        username: profile.data.username || null,
+        name: profile.data.name || null,
+        accountType: profile.data.account_type || null,
+      };
+    }
+  }
+
+  // 5) User token: /me/accounts orqali Page + IG topish
+  const accounts = await graphGet(
+    GRAPH_FB,
+    `/me/accounts?fields=id,name,access_token,instagram_business_account`,
+    token
+  );
+  if (accounts.res.ok && !(accounts.data as { error?: unknown }).error) {
+    const list = (accounts.data as { data?: Array<{
+      id?: string;
+      name?: string;
+      access_token?: string;
+      instagram_business_account?: { id?: string };
+    }> }).data || [];
+    const withIg = list.find((p) => p.instagram_business_account?.id);
+    if (withIg?.instagram_business_account?.id && withIg.access_token) {
+      const igId = withIg.instagram_business_account.id;
+      const profile = await graphGet(
+        GRAPH_FB,
+        `/${igId}?fields=id,username,name,account_type`,
+        withIg.access_token
+      );
+      return {
+        igUserId: igId,
+        graphBase: GRAPH_FB,
+        pageTokenOverride: withIg.access_token,
+        username: profile.data.username || null,
+        name: profile.data.name || null,
+        accountType: profile.data.account_type || null,
+      };
+    }
+  }
+
+  const hint =
+    pageMe.data.error?.message ||
+    igMe.data.error?.message ||
+    "Token Page Access Token emas yoki Instagram Professional ulanmagan";
+  throw new IgPublishError(hint);
+}
+
 export async function getIgCredentials(): Promise<IgCredentials> {
   const pageToken =
     (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
@@ -22,10 +156,11 @@ export async function getIgCredentials(): Promise<IgCredentials> {
     throw new IgPublishError("Page Access Token yo‘q — Meta / DM bo‘limiga token qo‘ying");
   }
 
-  let igUserId = (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
-  if (!igUserId.trim()) {
-    igUserId = await resolveIgUserId(pageToken);
-  }
+  const preferredIg =
+    (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
+
+  const resolved = await resolveIgAccess(pageToken.trim(), preferredIg);
+  const token = resolved.pageTokenOverride || pageToken.trim();
 
   const publicBase = ((await getSetting("app_domain")) || (await getAppUrl()) || "").replace(/\/$/, "");
   if (!publicBase || /localhost|127\.0\.0\.1/i.test(publicBase)) {
@@ -34,30 +169,18 @@ export async function getIgCredentials(): Promise<IgCredentials> {
     );
   }
 
-  return { pageToken: pageToken.trim(), igUserId: igUserId.trim(), publicBase };
+  return {
+    pageToken: token,
+    igUserId: resolved.igUserId,
+    publicBase,
+    graphBase: resolved.graphBase,
+  };
 }
 
 /** Page token orqali Instagram Business account ID topish */
 export async function resolveIgUserId(pageToken: string): Promise<string> {
-  const url = `${GRAPH}/me?fields=instagram_business_account&access_token=${encodeURIComponent(pageToken)}`;
-  const res = await fetch(url);
-  const data = (await res.json()) as {
-    instagram_business_account?: { id?: string };
-    error?: { message?: string };
-  };
-  if (!res.ok || data.error) {
-    throw new IgPublishError(
-      data.error?.message ||
-        "Instagram Business akkaunt topilmadi — Page Instagram Professional bilan bog‘langanmi?"
-    );
-  }
-  const id = data.instagram_business_account?.id;
-  if (!id) {
-    throw new IgPublishError(
-      "Bu Page ga Instagram Professional ulanmagan. Meta Business Suite da Page ↔ Instagram bog‘lang."
-    );
-  }
-  return id;
+  const resolved = await resolveIgAccess(pageToken);
+  return resolved.igUserId;
 }
 
 export async function testInstagramConnection() {
@@ -67,26 +190,16 @@ export async function testInstagramConnection() {
     return { ok: false as const, error: "Page Access Token bo‘sh" };
   }
   try {
-    const igUserId = await resolveIgUserId(pageToken.trim());
-    const meRes = await fetch(
-      `${GRAPH}/${igUserId}?fields=id,username,name,account_type&access_token=${encodeURIComponent(pageToken)}`
-    );
-    const me = (await meRes.json()) as {
-      id?: string;
-      username?: string;
-      name?: string;
-      account_type?: string;
-      error?: { message?: string };
-    };
-    if (!meRes.ok || me.error) {
-      return { ok: false as const, error: me.error?.message || "IG profil o‘qilmadi" };
-    }
+    const preferredIg =
+      (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
+    const resolved = await resolveIgAccess(pageToken.trim(), preferredIg);
     return {
       ok: true as const,
-      igUserId: me.id || igUserId,
-      username: me.username || null,
-      name: me.name || null,
-      accountType: me.account_type || null,
+      igUserId: resolved.igUserId,
+      username: resolved.username,
+      name: resolved.name,
+      accountType: resolved.accountType,
+      graphBase: resolved.graphBase,
     };
   } catch (e) {
     return { ok: false as const, error: e instanceof Error ? e.message : "Ulanish xatosi" };
@@ -104,9 +217,9 @@ function toPublicUrl(pathOrUrl: string, publicBase: string): string {
   return `${publicBase}${path}`;
 }
 
-async function graphPost(path: string, token: string, body: Record<string, string>) {
+async function graphPost(base: string, path: string, token: string, body: Record<string, string>) {
   const params = new URLSearchParams({ ...body, access_token: token });
-  const res = await fetch(`${GRAPH}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
@@ -118,11 +231,11 @@ async function graphPost(path: string, token: string, body: Record<string, strin
   return data.id;
 }
 
-async function waitContainerReady(containerId: string, token: string, maxMs = 120_000) {
+async function waitContainerReady(base: string, containerId: string, token: string, maxMs = 120_000) {
   const started = Date.now();
   while (Date.now() - started < maxMs) {
     const res = await fetch(
-      `${GRAPH}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`
+      `${base}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`
     );
     const data = (await res.json()) as {
       status_code?: string;
@@ -146,7 +259,7 @@ export async function publishReelToInstagram(opts: {
   coverUrl?: string | null;
   shareToFeed?: boolean;
 }) {
-  const { pageToken, igUserId, publicBase } = await getIgCredentials();
+  const { pageToken, igUserId, publicBase, graphBase } = await getIgCredentials();
   const videoUrl = toPublicUrl(opts.videoUrl, publicBase);
   const body: Record<string, string> = {
     media_type: "REELS",
@@ -162,9 +275,9 @@ export async function publishReelToInstagram(opts: {
     }
   }
 
-  const containerId = await graphPost(`/${igUserId}/media`, pageToken, body);
-  await waitContainerReady(containerId, pageToken);
-  const mediaId = await graphPost(`/${igUserId}/media_publish`, pageToken, {
+  const containerId = await graphPost(graphBase, `/${igUserId}/media`, pageToken, body);
+  await waitContainerReady(graphBase, containerId, pageToken);
+  const mediaId = await graphPost(graphBase, `/${igUserId}/media_publish`, pageToken, {
     creation_id: containerId,
   });
   return { containerId, mediaId, videoUrl };
@@ -174,29 +287,29 @@ export async function publishStoryToInstagram(opts: {
   mediaUrl: string;
   mediaType: "image" | "video";
 }) {
-  const { pageToken, igUserId, publicBase } = await getIgCredentials();
+  const { pageToken, igUserId, publicBase, graphBase } = await getIgCredentials();
   const mediaUrl = toPublicUrl(opts.mediaUrl, publicBase);
   const body: Record<string, string> =
     opts.mediaType === "video"
       ? { media_type: "STORIES", video_url: mediaUrl }
       : { media_type: "STORIES", image_url: mediaUrl };
 
-  const containerId = await graphPost(`/${igUserId}/media`, pageToken, body);
-  await waitContainerReady(containerId, pageToken);
-  const mediaId = await graphPost(`/${igUserId}/media_publish`, pageToken, {
+  const containerId = await graphPost(graphBase, `/${igUserId}/media`, pageToken, body);
+  await waitContainerReady(graphBase, containerId, pageToken);
+  const mediaId = await graphPost(graphBase, `/${igUserId}/media_publish`, pageToken, {
     creation_id: containerId,
   });
   return { containerId, mediaId, mediaUrl };
 }
 
-/** Instagram DM javob (Page Messaging / IG) */
+/** Instagram DM javob (Page Messaging / IG) — Page Access Token kerak */
 export async function sendInstagramDm(recipientId: string, text: string) {
   const pageToken =
     (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
   if (!pageToken) throw new IgPublishError("Page token yo‘q");
 
   const res = await fetch(
-    `${GRAPH}/me/messages?access_token=${encodeURIComponent(pageToken)}`,
+    `${GRAPH_FB}/me/messages?access_token=${encodeURIComponent(pageToken)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

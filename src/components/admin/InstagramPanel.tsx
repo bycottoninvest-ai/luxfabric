@@ -182,7 +182,12 @@ export function InstagramPanel({
           <h2 className="font-semibold">1. Meta / Instagram ulash</h2>
           {field("instagram_username", "Instagram username", "@sizning_akkaunt")}
           {field("instagram_verify_token", "Verify token", "Meta Webhook verify token bilan bir xil")}
-          {field("instagram_page_token", "Page Access Token", "instagram_content_publish + messaging ruxsatlari", "password")}
+          {field(
+            "instagram_page_token",
+            "Access Token (Page yoki Instagram Login)",
+            "Page Access Token (Graph Explorer) yoki Instagram Login token — publish uchun",
+            "password"
+          )}
           {field("instagram_app_secret", "App Secret", undefined, "password")}
           {field(
             "instagram_ig_user_id",
