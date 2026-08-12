@@ -8,9 +8,11 @@ export async function proxy(request: NextRequest) {
   const isLoginPage = pathname === "/admin/login";
   const isLoginApi = pathname === "/api/admin/auth/login";
   const isLogoutApi = pathname === "/api/admin/auth/logout";
+  /** Instagram OAuth callback — cookie yo‘q (Meta redirect) */
+  const isIgOauthCallback = pathname === "/api/admin/instagram/oauth/callback";
   const needsAuth =
     (pathname.startsWith("/admin") && !isLoginPage) ||
-    (pathname.startsWith("/api/admin") && !isLoginApi && !isLogoutApi);
+    (pathname.startsWith("/api/admin") && !isLoginApi && !isLogoutApi && !isIgOauthCallback);
 
   if (!needsAuth) {
     if (isLoginPage) {

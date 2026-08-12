@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { ImageIcon, Settings2, Video } from "lucide-react";
 import { ReelsManager } from "@/components/admin/ReelsManager";
 import { StoriesManager } from "@/components/admin/StoriesManager";

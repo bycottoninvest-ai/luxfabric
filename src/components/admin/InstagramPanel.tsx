@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Copy, ExternalLink, Power } from "lucide-react";
 
 type Product = {
@@ -22,12 +22,25 @@ export function InstagramPanel({
   products: Product[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState(initial);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState("");
   const [testMsg, setTestMsg] = useState("");
   const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    const ok = searchParams.get("oauth");
+    const err = searchParams.get("oauth_error");
+    if (ok === "ok") {
+      setTestMsg("OAuth OK ✓ Token saqlandi — «Ulanishni tekshirish» ni bosing");
+      router.replace("/admin/instagram");
+    } else if (err) {
+      setTestMsg(`❗ OAuth: ${err}`);
+      router.replace("/admin/instagram");
+    }
+  }, [searchParams, router]);
 
   const enabled = form.instagram_enabled === "true";
   const webhook = useMemo(
@@ -188,7 +201,12 @@ export function InstagramPanel({
             "Page Access Token (Graph Explorer) yoki Instagram Login token — publish uchun",
             "password"
           )}
-          {field("instagram_app_secret", "App Secret", undefined, "password")}
+          {field(
+            "instagram_app_secret",
+            "Instagram App Secret",
+            "Meta → Instagram API Setup → «Показать». Token olishdan oldin Saqlash",
+            "password"
+          )}
           {field(
             "instagram_ig_user_id",
             "Instagram Business User ID",
@@ -199,14 +217,28 @@ export function InstagramPanel({
             "Sayt domeni (HTTPS, public)",
             "Muhim: Meta localhost o‘qimaydi. Prod: https://luxfabricshop.uz yoki ngrok"
           )}
-          <button
-            type="button"
-            disabled={testing || loading}
-            onClick={testConnection}
-            className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-          >
-            {testing ? "Tekshirilmoqda..." : "Ulanishni tekshirish"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/api/admin/instagram/oauth/start"
+              className="rounded-xl bg-lf-red px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              Instagram token olish (OAuth)
+            </a>
+            <button
+              type="button"
+              disabled={testing || loading}
+              onClick={testConnection}
+              className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+            >
+              {testing ? "Tekshirilmoqda..." : "Ulanishni tekshirish"}
+            </button>
+          </div>
+          <p className="text-[11px] text-white/40">
+            OAuth redirect (Meta ga qo‘ying):{" "}
+            <code className="text-white/70">
+              https://www.luxfabricshop.uz/api/admin/instagram/oauth/callback
+            </code>
+          </p>
           {testMsg && (
             <p className={`text-sm ${testMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}>
               {testMsg}
