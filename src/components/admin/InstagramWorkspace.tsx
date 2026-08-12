@@ -95,7 +95,9 @@ export function InstagramWorkspace({
       {tab === "meta" && (
         <div>
           <h2 className="mb-3 text-lg font-semibold">Meta / DM sozlamalari</h2>
-          <InstagramPanel initial={metaInitial} domain={domain} products={featuredProducts} />
+          <Suspense fallback={<p className="text-sm text-white/40">Yuklanmoqda…</p>}>
+            <InstagramPanel initial={metaInitial} domain={domain} products={featuredProducts} />
+          </Suspense>
         </div>
       )}
     </div>
