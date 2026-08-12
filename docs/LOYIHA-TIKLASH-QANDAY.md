@@ -1,18 +1,24 @@
 # LUXFABRIC — tiklash PDF qayerda?
 
-**Private fayllar (parollar / sirlar uchun):**  
-- `docs/private/LOYIHA-TIKLASH.pdf` (+ `LOYIHA-TIKLASH.md`) — akkaunt jadvali  
-- `docs/private/LUXFABRIC-HOLAT-META-INSTAGRAM-2026-08-13.pdf` — **parol bilan ochiladi** (Meta/Instagram/admin to‘liq holat)  
-- Ochish paroli: `docs/private/PDF-PAROL.txt`
+**Private fayllar (parollar / sirlar uchun — gitignore):**
+
+| Fayl | Nima |
+|------|------|
+| `docs/private/LUXFABRIC-HOLAT-RECOVERY-2026-08-13.pdf` | **Asosiy** recovery PDF (parolli; secret qiymatlarsiz, qayerda ekanligi bilan) |
+| `docs/private/PDF-PAROL.txt` | Shu PDF ochish paroli |
+| `docs/private/README.txt` | Qisqa yo‘riqnoma |
+| `docs/private/LOYIHA-TIKLASH.pdf` (+ `.md`) | Eski akkaunt jadvali (bo‘sh kataklarni o‘zingiz to‘ldirasiz) |
+| `docs/private/LUXFABRIC-HOLAT-META-INSTAGRAM-*.pdf` | Eski Meta PDF — yangi RECOVERY ni afzal ko‘ring |
 
 ## Nima qilish kerak
 
-1. Yangi holat PDF ni oching (parol `PDF-PAROL.txt` dan).
-2. Eski `LOYIHA-TIKLASH.pdf` da akkauntlar jadvalidagi bo‘sh kataklarni o‘zingiz to‘ldiring.
+1. `LUXFABRIC-HOLAT-RECOVERY-*.pdf` ni oching (parol `PDF-PAROL.txt` dan).
+2. Public holat: `docs/HOLAT-SAQLANGAN.md`.
 3. Fayllarni xavfsiz joyda saqlang (USB / shaxsiy disk).
+4. Boshqa AIga: **HOLAT-SAQLANGAN.md + RECOVERY PDF** (parolni alohida xavfsiz kanalda).
 
 ## Muhim
 
-- `docs/private/` **gitga commit qilinmasin** (`.gitignore` da).
-- Haqiqiy parollarni public docga yozmang.
+- `docs/private/` **gitga commit qilinmasin** (`.gitignore` da `/docs/private/`).
+- Haqiqiy API secret / Neon URI / admin parolni public docga yoki chatga yozmang.
 - Umumiy holat (parolsiz): `docs/HOLAT-SAQLANGAN.md`
