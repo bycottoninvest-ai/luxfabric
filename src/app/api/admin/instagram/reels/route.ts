@@ -106,20 +106,55 @@ export async function PATCH(req: Request) {
     const body = patchSchema.parse(await req.json());
     const { id, remux, ...data } = body;
 
+    const existing = await prisma.instagramReel.findUnique({
+      where: { id },
+      include: { music: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Reel topilmadi" }, { status: 404 });
+    }
+
+    const nextShowBuy =
+      typeof data.showBuyButton === "boolean" ? data.showBuyButton : existing.showBuyButton;
+    const nextProductId =
+      data.productId !== undefined ? data.productId || null : existing.productId;
+    if (nextShowBuy && !nextProductId) {
+      return NextResponse.json(
+        { error: "«Sotib olish» uchun mahsulot tanlang yoki tugmani o‘chiring" },
+        { status: 400 }
+      );
+    }
+
     let videoUrl = data.videoUrl;
     let audioEmbedded = data.audioEmbedded;
+    let muxNote: string | null = null;
+    const musicChanging =
+      data.musicId !== undefined && (data.musicId || null) !== (existing.musicId || null);
+    const shouldRemux = Boolean(remux) || musicChanging;
 
-    if (remux) {
-      const existing = await prisma.instagramReel.findUnique({
-        where: { id },
-        include: { music: true },
-      });
-      if (!existing?.music?.fileUrl) {
-        return NextResponse.json({ error: "Reelda musiqa yo‘q" }, { status: 400 });
+    if (shouldRemux) {
+      const musicId = data.musicId !== undefined ? data.musicId || null : existing.musicId;
+      const track = musicId
+        ? await prisma.instagramMusic.findUnique({ where: { id: musicId } })
+        : null;
+      if (!track?.fileUrl) {
+        if (remux) {
+          return NextResponse.json({ error: "Reelda musiqa yo‘q" }, { status: 400 });
+        }
+      } else {
+        try {
+          const sourceVideo = data.videoUrl || existing.videoUrl;
+          videoUrl = await muxVideoWithMusic(sourceVideo, track.fileUrl);
+          audioEmbedded = true;
+          muxNote = `Musiqa videoga birlashtirildi · ${track.title}`;
+        } catch (e) {
+          muxNote =
+            e instanceof Error
+              ? `Birlashtirish ishlamadi — alohida audio: ${e.message}`
+              : "Birlashtirish ishlamadi — alohida audio";
+          audioEmbedded = false;
+        }
       }
-      const sourceVideo = data.videoUrl || existing.videoUrl;
-      videoUrl = await muxVideoWithMusic(sourceVideo, existing.music.fileUrl);
-      audioEmbedded = true;
     }
 
     const reel = await prisma.instagramReel.update({
@@ -129,28 +164,24 @@ export async function PATCH(req: Request) {
         ...(data.caption !== undefined ? { caption: data.caption } : {}),
         ...(videoUrl !== undefined ? { videoUrl } : {}),
         ...(data.coverUrl !== undefined ? { coverUrl: data.coverUrl } : {}),
-        ...(data.musicId !== undefined ? { musicId: data.musicId } : {}),
-        ...(data.productId !== undefined ? { productId: data.productId } : {}),
+        ...(data.musicId !== undefined ? { musicId: data.musicId || null } : {}),
+        ...(data.productId !== undefined || typeof data.showBuyButton === "boolean"
+          ? { productId: nextShowBuy ? nextProductId : null }
+          : {}),
         ...(data.buyButtonLabel !== undefined ? { buyButtonLabel: data.buyButtonLabel } : {}),
         ...(typeof data.showBuyButton === "boolean" ? { showBuyButton: data.showBuyButton } : {}),
         ...(typeof data.isPublished === "boolean" ? { isPublished: data.isPublished } : {}),
         ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
+        ...(typeof audioEmbedded === "boolean" ? { audioEmbedded } : {}),
       },
       include,
     });
 
-    if (audioEmbedded === true) {
-      try {
-        await prisma.$executeRawUnsafe(
-          `UPDATE InstagramReel SET audioEmbedded = 1 WHERE id = ?`,
-          id
-        );
-      } catch {
-        /* ignore */
-      }
-    }
-
-    return NextResponse.json({ ...reel, audioEmbedded: audioEmbedded ?? false });
+    return NextResponse.json({
+      ...reel,
+      audioEmbedded: typeof audioEmbedded === "boolean" ? audioEmbedded : reel.audioEmbedded,
+      muxNote,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Xatolik" },

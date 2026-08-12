@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Music2, Trash2, Upload, Video } from "lucide-react";
+import { Copy, Music2, Pencil, Trash2, Upload, Video, X } from "lucide-react";
 import { formatSom } from "@/lib/utils";
 import { uploadAdminMedia } from "@/lib/client-upload";
 import { productBuyUrl } from "@/lib/ig-caption";
@@ -100,6 +100,19 @@ export function ReelsManager({
   const [musicTitle, setMusicTitle] = useState("");
   const [musicArtist, setMusicArtist] = useState("LUXFABRIC");
   const [musicUrl, setMusicUrl] = useState("");
+
+  /** Yon panel — mavjud Reelni tahrirlash */
+  const [editing, setEditing] = useState<Reel | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editCaption, setEditCaption] = useState("");
+  const [editMusicId, setEditMusicId] = useState("");
+  const [editProductId, setEditProductId] = useState("");
+  const [editBuyLabel, setEditBuyLabel] = useState("Sotib olish");
+  const [editShowBuy, setEditShowBuy] = useState(true);
+  const [editPublished, setEditPublished] = useState(true);
+  const [editCoverUrl, setEditCoverUrl] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+  const [editMsg, setEditMsg] = useState("");
 
   const productOptions = useMemo(() => products, [products]);
   const musicTracks = useMemo(() => music, [music]);
@@ -415,20 +428,127 @@ export function ReelsManager({
     }
   }
 
-  async function togglePublish(reel: Reel) {
-    const res = await fetch("/api/admin/instagram/reels", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: reel.id, isPublished: !reel.isPublished }),
-    });
-    const data = await res.json();
-    if (res.ok) setReels((list) => list.map((r) => (r.id === reel.id ? data : r)));
+  function openEdit(reel: Reel) {
+    setEditing(reel);
+    setEditTitle(reel.title);
+    setEditCaption(reel.caption || "");
+    setEditMusicId(reel.musicId || "");
+    setEditProductId(reel.productId || "");
+    setEditBuyLabel(reel.buyButtonLabel || "Sotib olish");
+    setEditShowBuy(reel.showBuyButton);
+    setEditPublished(reel.isPublished);
+    setEditCoverUrl(reel.coverUrl || "");
+    setEditMsg("");
   }
 
-  async function removeReel(id: string) {
-    if (!confirm("Reelni o‘chirasizmi?")) return;
-    const res = await fetch(`/api/admin/instagram/reels?id=${id}`, { method: "DELETE" });
-    if (res.ok) setReels((list) => list.filter((r) => r.id !== id));
+  function closeEdit() {
+    if (editBusy) return;
+    setEditing(null);
+    setEditMsg("");
+  }
+
+  async function onEditCover(file: File | null) {
+    if (!file) return;
+    setEditBusy(true);
+    setEditMsg("");
+    try {
+      const url = await uploadFile(file, "image");
+      setEditCoverUrl(url);
+      setEditMsg("Muqova yuklandi ✓");
+    } catch (e) {
+      setEditMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Muqova xatosi");
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    if (!editTitle.trim()) {
+      setEditMsg("❗ Sarlavha kerak");
+      return;
+    }
+    if (editShowBuy && !editProductId) {
+      setEditMsg("❗ «Sotib olish» uchun mahsulot tanlang yoki tugmani o‘chiring");
+      return;
+    }
+    const musicChanged = (editMusicId || null) !== (editing.musicId || null);
+    setEditBusy(true);
+    setEditMsg(musicChanged ? "Saqlanmoqda + musiqa birlashtirilmoqda…" : "Saqlanmoqda…");
+    try {
+      const res = await fetch("/api/admin/instagram/reels", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editing.id,
+          title: editTitle.trim(),
+          caption: editCaption,
+          musicId: editMusicId || null,
+          productId: editShowBuy ? editProductId || null : null,
+          buyButtonLabel: editBuyLabel || "Sotib olish",
+          showBuyButton: editShowBuy,
+          isPublished: editPublished,
+          coverUrl: editCoverUrl || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Saqlash xatosi");
+      setReels((list) => list.map((r) => (r.id === editing.id ? data : r)));
+      const mux = typeof data.muxNote === "string" ? ` · ${data.muxNote}` : "";
+      setMsg(`Reel yangilandi ✓${mux}`);
+      setEditing(null);
+      setEditMsg("");
+      router.refresh();
+    } catch (e) {
+      setEditMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Saqlash xatosi");
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  async function togglePublish(reel: Reel) {
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/admin/instagram/reels", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reel.id, isPublished: !reel.isPublished }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Xatolik");
+      setReels((list) => list.map((r) => (r.id === reel.id ? data : r)));
+      setMsg(data.isPublished ? "Reel ko‘rsatiladi ✓" : "Reel yashirildi ✓");
+      router.refresh();
+    } catch (e) {
+      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Xatolik");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeReel(reel: Reel) {
+    const ok = confirm(
+      `«${reel.title}» Reelni butunlay o‘chirasizmi?\n\nBu amalni qaytarib bo‘lmaydi. Faqat saytdan yashirish uchun «Yashirish»ni bosing.`
+    );
+    if (!ok) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch(`/api/admin/instagram/reels?id=${encodeURIComponent(reel.id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "O‘chirish xatosi");
+      setReels((list) => list.filter((r) => r.id !== reel.id));
+      if (editing?.id === reel.id) setEditing(null);
+      setMsg("Reel o‘chirildi ✓");
+      router.refresh();
+    } catch (e) {
+      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function removeMusic(id: string) {
@@ -768,12 +888,22 @@ export function ReelsManager({
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
+                  disabled={busy || editBusy}
+                  onClick={() => openEdit(r)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/15 disabled:opacity-50"
+                  title="Caption, mahsulot, musiqa va tugmani tahrirlash"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Tahrirlash
+                </button>
+                <button
+                  type="button"
                   disabled={busy}
                   onClick={() => publishReelToMeta(r)}
                   className="rounded-lg bg-gradient-to-r from-pink-600 to-purple-600 px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
                   title="Haqiqiy Instagram akkauntga joylash (Meta Graph)"
                 >
-                  {r.metaMediaId ? "IGga qayta joylash" : "Instagramga joylash"}
+                  {r.metaMediaId ? "IGga qayta joylash" : "IGga joylash"}
                 </button>
                 {r.music && !r.audioEmbedded && (
                   <button
@@ -787,13 +917,21 @@ export function ReelsManager({
                 )}
                 <button
                   type="button"
+                  disabled={busy}
                   onClick={() => togglePublish(r)}
-                  className="rounded-lg bg-white/10 px-3 py-1.5 text-xs"
+                  className="rounded-lg bg-white/10 px-3 py-1.5 text-xs disabled:opacity-50"
                 >
-                  {r.isPublished ? "Yashirish" : "Nashr"}
+                  {r.isPublished ? "Yashirish" : "Ko‘rsatish"}
                 </button>
-                <button type="button" onClick={() => removeReel(r.id)} className="rounded-lg bg-white/10 p-2">
-                  <Trash2 className="h-4 w-4" />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => removeReel(r)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/25 disabled:opacity-50"
+                  title="Butunlay o‘chirish"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  O‘chirish
                 </button>
               </div>
             </div>
@@ -838,7 +976,198 @@ export function ReelsManager({
         ))}
       </section>
 
-      {msg && <p className="text-sm text-emerald-400">{msg}</p>}
+      {msg && (
+        <p className={`text-sm ${msg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}>
+          {msg}
+        </p>
+      )}
+
+      {/* Yon panel — Reel tahrirlash */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <button
+            type="button"
+            aria-label="Yopish"
+            className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+            onClick={closeEdit}
+          />
+          <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#12141a] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div>
+                <h3 className="font-semibold">Reelni tahrirlash</h3>
+                <p className="text-[11px] text-white/45 truncate max-w-[260px]">{editing.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEdit}
+                disabled={editBusy}
+                className="rounded-lg bg-white/10 p-2 disabled:opacity-40"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+              <video
+                src={editing.videoUrl}
+                controls
+                className="max-h-44 w-full rounded-xl bg-black object-contain"
+              />
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Sarlavha</span>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                />
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Caption</span>
+                <textarea
+                  rows={4}
+                  value={editCaption}
+                  onChange={(e) => setEditCaption(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                />
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Mahsulot</span>
+                <select
+                  value={editProductId}
+                  onChange={(e) => {
+                    setEditProductId(e.target.value);
+                    if (e.target.value) setEditShowBuy(true);
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                >
+                  <option value="">— Model tanlang —</option>
+                  {productOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {formatSom(p.price)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Musiqa</span>
+                <select
+                  value={editMusicId}
+                  onChange={(e) => setEditMusicId(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                >
+                  <option value="">Musiqasiz</option>
+                  {musicTracks.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.title} — {m.artist}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-white/40">
+                  Musiqa o‘zgarsa saqlashda videoga qayta birlashtiriladi.
+                </p>
+              </label>
+
+              <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editShowBuy}
+                    onChange={(e) => setEditShowBuy(e.target.checked)}
+                  />
+                  «Sotib olish» tugmasi
+                </label>
+                {editShowBuy && (
+                  <label className="block space-y-1.5">
+                    <span className="text-xs uppercase tracking-[0.12em] text-white/45">
+                      Tugma matni
+                    </span>
+                    <input
+                      value={editBuyLabel}
+                      onChange={(e) => setEditBuyLabel(e.target.value)}
+                      className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                      placeholder="Sotib olish"
+                    />
+                  </label>
+                )}
+              </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editPublished}
+                  onChange={(e) => setEditPublished(e.target.checked)}
+                />
+                Nashr qilingan (/instagram da ko‘rinsin)
+              </label>
+
+              <div className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Muqova</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 px-3 py-2 text-xs">
+                    <Upload className="h-3.5 w-3.5" />
+                    Rasm yuklash
+                    <input
+                      type="file"
+                      accept="image/*,.jpg,.jpeg,.png,.webp"
+                      className="hidden"
+                      onChange={(e) => onEditCover(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                  {editCoverUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditCoverUrl("")}
+                      className="rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"
+                    >
+                      Muqovani olib tashlash
+                    </button>
+                  )}
+                </div>
+                {editCoverUrl && (
+                  <img
+                    src={editCoverUrl}
+                    alt="Muqova"
+                    className="max-h-32 rounded-lg object-cover"
+                  />
+                )}
+              </div>
+
+              {editMsg && (
+                <p
+                  className={`text-sm ${
+                    editMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"
+                  }`}
+                >
+                  {editMsg}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2 border-t border-white/10 px-4 py-3">
+              <button
+                type="button"
+                disabled={editBusy}
+                onClick={closeEdit}
+                className="flex-1 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
+              >
+                Bekor
+              </button>
+              <button
+                type="button"
+                disabled={editBusy}
+                onClick={saveEdit}
+                className="flex-1 rounded-xl bg-lf-red px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+              >
+                {editBusy ? "Saqlanmoqda…" : "Saqlash"}
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
