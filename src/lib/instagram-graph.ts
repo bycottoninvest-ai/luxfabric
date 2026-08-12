@@ -325,3 +325,38 @@ export async function sendInstagramDm(recipientId: string, text: string) {
   }
   return data;
 }
+
+/**
+ * Instagram izohga javob (Graph: POST /{comment-id}/replies).
+ * Page yoki IG Login token + comments ruxsati kerak.
+ */
+export async function replyToInstagramComment(commentId: string, message: string) {
+  const pageToken =
+    (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
+  if (!pageToken.trim()) throw new IgPublishError("Page token yo‘q");
+
+  const preferredIg =
+    (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
+  let graphBase = GRAPH_FB;
+  try {
+    const resolved = await resolveIgAccess(pageToken.trim(), preferredIg);
+    graphBase = resolved.graphBase;
+  } catch {
+    /* default FB */
+  }
+
+  const params = new URLSearchParams({
+    message: message.slice(0, 800),
+    access_token: pageToken.trim(),
+  });
+  const res = await fetch(`${graphBase}/${commentId}/replies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const data = (await res.json()) as { id?: string; error?: { message?: string } };
+  if (!res.ok || data.error) {
+    throw new IgPublishError(data.error?.message || "Izoh javobi yuborilmadi");
+  }
+  return data;
+}

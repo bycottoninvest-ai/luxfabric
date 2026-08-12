@@ -59,14 +59,44 @@ export function SettingsForm({ initial }: { initial: Record<string, string> }) {
         <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-lf-muted">
           Webhook URL: <span className="text-white">{(form.app_domain || "https://luxfabricshop.uz").replace(/\/$/, "")}/api/instagram</span>
           <br />
-          Callback: Meta App → Webhooks → Page → messages, messaging_postbacks
+          Callback: Meta App → Webhooks → Page/Instagram → messages, messaging_postbacks,{" "}
+          <span className="text-white">comments</span>
         </div>
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-lf-card p-4 space-y-3">
-        <h2 className="font-semibold">To‘lov</h2>
-        {field("click_merchant_id", "Click Merchant ID")}
+        <h2 className="font-semibold">To‘lov — Click</h2>
+        {field("click_merchant_id", "Click Merchant ID", "merchant.click.uz kabinetdan")}
+        {field("click_service_id", "Click Service ID")}
+        {field(
+          "click_secret_key",
+          "Click Secret Key",
+          "Yoki Vercel env: CLICK_SECRET_KEY (tavsiya)",
+          "password"
+        )}
         {field("payme_merchant_id", "Payme Merchant ID")}
+        <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-lf-muted space-y-1">
+          <p>
+            Prepare URL:{" "}
+            <span className="text-white">
+              {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}
+              /api/click/prepare
+            </span>
+          </p>
+          <p>
+            Complete URL:{" "}
+            <span className="text-white">
+              {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}
+              /api/click/complete
+            </span>
+          </p>
+          <p className="pt-1">
+            Yoki ikkalasi uchun bitta:{" "}
+            <span className="text-white">
+              {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}/api/click
+            </span>
+          </p>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-lf-card p-4 space-y-3">

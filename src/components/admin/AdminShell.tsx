@@ -18,6 +18,7 @@ import {
   Users,
   Warehouse,
   BarChart3,
+  MessageSquareQuote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ const desktopLinks = [
   { href: "/admin/labels", label: "QR Yorliqlar", icon: QrCode },
   { href: "/admin/products", label: "Mahsulotlar", icon: Package },
   { href: "/admin/orders", label: "Buyurtmalar", icon: ShoppingBag },
+  { href: "/admin/reviews", label: "Sharhlar", icon: MessageSquareQuote },
   { href: "/admin/warehouse", label: "Omborlar", icon: Warehouse },
   { href: "/admin/logistics", label: "Dostavka", icon: Truck },
   { href: "/admin/instagram", label: "Instagram", icon: Clapperboard },

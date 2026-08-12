@@ -271,6 +271,8 @@ async function main() {
       "Salom! Narx, o‘lcham, yetkazib berish yoki buyurtma havolasini so‘rashingiz mumkin.",
     telegram_bot_token: "",
     click_merchant_id: "",
+    click_service_id: "",
+    click_secret_key: "",
     payme_merchant_id: "",
     support_phone: "+998900000000",
   };

@@ -35,7 +35,9 @@ Vercel loyiha: `luxfabric-qhy9` — domenlar Valid Configuration.
    - `DATABASE_URL` = Neon URI (Production + Preview)
    - `NEXT_PUBLIC_APP_URL` = `https://www.luxfabricshop.uz`
    - `NEXT_PUBLIC_PROD_DOMAIN` = `https://luxfabricshop.uz`
+   - Click (ixtiyoriy, yoki Admin → Sozlamalar): `CLICK_MERCHANT_ID`, `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY`
 3. **Save**
+4. Click kabinet callback: `https://www.luxfabricshop.uz/api/click/prepare` va `/api/click/complete`
 
 ### 4) Redeploy + migrate + seed
 Build skript (`scripts/build.mjs`) Vercelda haqiqiy `DATABASE_URL` bo‘lsa avtomatik:

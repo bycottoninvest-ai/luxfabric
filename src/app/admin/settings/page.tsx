@@ -17,6 +17,8 @@ export default async function AdminSettingsPage() {
     "sms_api_key",
     "sms_sender",
     "click_merchant_id",
+    "click_service_id",
+    "click_secret_key",
     "payme_merchant_id",
   ]);
 

@@ -37,6 +37,7 @@ model Product {
   orderItems  OrderItem[]
   reels       InstagramReel[]
   stories     InstagramStory[]
+  reviews     Review[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 }
@@ -156,6 +157,9 @@ model Order {
   handedToCourierAt DateTime?
   stockDeducted     Boolean         @default(true)
   cardSavedAt       DateTime?
+  /// Click SHOP API: merchant_prepare_id / click_trans_id
+  clickTransId      String?
+  clickPrepareId    Int?
   customerId        String?
   customer          Customer?       @relation(fields: [customerId], references: [id])
   warehouseId       String?
@@ -165,8 +169,44 @@ model Order {
   items             OrderItem[]
   events            TrackingEvent[]
   scans             ScanEvent[]
+  reviews           Review[]
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+}
+
+/// Mahsulot sharhi (Wildberries-lite): yulduz + matn + foto
+model Review {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderId      String?
+  order        Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  rating       Int
+  text         String   @default("")
+  photoUrls    String[] @default([])
+  customerName String
+  customerPhone String?
+  /// PENDING | APPROVED | REJECTED
+  status       String   @default("PENDING")
+  /// Do‘kon AI / admin javobi
+  shopReply    String?
+  shopRepliedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([productId, status])
+  @@index([status, createdAt])
+}
+
+/// Instagram izohga bir marta javob berilganini kuzatish (spam oldini olish)
+model InstagramCommentReply {
+  id          String   @id @default(cuid())
+  commentId   String   @unique
+  mediaId     String?
+  commentText String   @default("")
+  replyText   String
+  source      String   @default("ai") // ai | template
+  createdAt   DateTime @default(now())
 }
 
 model OrderItem {

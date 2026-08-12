@@ -298,7 +298,7 @@ export function InstagramPanel({
             </li>
             <li>
               Webhook: <span className="text-white">{webhook}</span> · verify token yuqoridagi bilan bir xil ·
-              fields: messages
+              fields: messages, <span className="text-white">comments</span>
             </li>
             <li>Page Access Token ni yozing → «Ulanishni tekshirish» → «Instagramni yoqish»</li>
             <li>

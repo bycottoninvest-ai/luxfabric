@@ -4,7 +4,9 @@ import { ShieldCheck, Star, Timer, Truck } from "lucide-react";
 import { StoreShell } from "@/components/StoreShell";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductPurchase } from "@/components/ProductPurchase";
+import { ProductReviews } from "@/components/ProductReviews";
 import { getFeaturedProducts, getProductBySlug } from "@/lib/catalog";
+import { getApprovedReviews, getReviewStats } from "@/lib/reviews";
 import { formatSom } from "@/lib/utils";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { GENDER_LABEL } from "@/lib/product-options";
@@ -15,6 +17,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   if (!product) notFound();
 
   const related = (await getFeaturedProducts()).filter((p) => p.id !== product.id).slice(0, 4);
+  const [reviews, stats] = await Promise.all([
+    getApprovedReviews(product.id, 20),
+    getReviewStats(product.id),
+  ]);
+  const displayRating = stats.avg ?? product.rating;
+  const reviewCount = stats.count;
 
   const variants = product.variants.map((v) => ({
     id: v.id,
@@ -49,9 +57,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       <div className="mt-3 space-y-2 rounded-3xl border border-lf-border bg-white p-4 shadow-sm">
         <div className="flex items-center gap-2 text-sm text-lf-muted">
           <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-          <span className="font-semibold text-lf-text">{product.rating.toFixed(1)}</span>
+          <span className="font-semibold text-lf-text">{displayRating.toFixed(1)}</span>
           <span>· {product.soldCount.toLocaleString("uz-UZ")} sotildi</span>
-          <span>· 128 sharh</span>
+          <span>· {reviewCount} sharh</span>
         </div>
         <div className="inline-flex rounded-full bg-lf-pink px-2.5 py-1 text-[11px] font-semibold text-lf-red">
           {GENDER_LABEL[product.gender] || product.gender}
@@ -93,6 +101,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <span className="font-semibold text-lf-text">Kategoriya:</span> {product.category.name}
         </p>
       </section>
+
+      <ProductReviews
+        productId={product.id}
+        productName={product.name}
+        initialReviews={reviews.map((r) => ({
+          ...r,
+          createdAt: r.createdAt.toISOString(),
+        }))}
+        initialAvg={stats.avg ?? product.rating}
+        initialCount={stats.count}
+      />
 
       {related.length > 0 && (
         <section className="mt-4 mb-2">

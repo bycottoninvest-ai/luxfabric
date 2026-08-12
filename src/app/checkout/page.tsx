@@ -289,6 +289,10 @@ export default function CheckoutPage() {
         preferredCourierId: form.preferredCourierId,
       });
       clear();
+      if (typeof data.paymentUrl === "string" && data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+        return;
+      }
       router.push(`/orders/success?no=${data.orderNumber}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Xatolik yuz berdi");

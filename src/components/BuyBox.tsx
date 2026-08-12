@@ -141,27 +141,51 @@ export function BuyBox({ product, variants, color: controlledColor, onColorChang
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={pushToCart}
-          disabled={!selected || max < 1}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-lf-border px-4 py-3.5 text-sm font-bold disabled:opacity-40"
-        >
-          <ShoppingBag className="h-4 w-4" /> Savatga
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            pushToCart();
-            router.push(fromIg ? "/checkout?from=instagram" : "/checkout");
-          }}
-          disabled={!selected || max < 1}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-lf-red px-4 py-3.5 text-sm font-bold text-white disabled:opacity-40"
-        >
-          <Zap className="h-4 w-4" /> Hozir sotib ol
-        </button>
-      </div>
+      {fromIg ? (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => {
+              pushToCart();
+              router.push("/checkout?from=instagram");
+            }}
+            disabled={!selected || max < 1}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-lf-red px-4 py-4 text-base font-bold text-white shadow-lg shadow-lf-red/20 disabled:opacity-40"
+          >
+            <Zap className="h-5 w-5" /> Sotib olish
+          </button>
+          <button
+            type="button"
+            onClick={pushToCart}
+            disabled={!selected || max < 1}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-lf-border px-4 py-2.5 text-xs font-semibold text-lf-muted disabled:opacity-40"
+          >
+            <ShoppingBag className="h-3.5 w-3.5" /> Avval savatga
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={pushToCart}
+            disabled={!selected || max < 1}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-lf-border px-4 py-3.5 text-sm font-bold disabled:opacity-40"
+          >
+            <ShoppingBag className="h-4 w-4" /> Savatga
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              pushToCart();
+              router.push("/checkout");
+            }}
+            disabled={!selected || max < 1}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-lf-red px-4 py-3.5 text-sm font-bold text-white disabled:opacity-40"
+          >
+            <Zap className="h-4 w-4" /> Hozir sotib ol
+          </button>
+        </div>
+      )}
     </div>
   );
 }

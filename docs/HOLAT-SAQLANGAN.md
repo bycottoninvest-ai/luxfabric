@@ -1,11 +1,12 @@
-# LUXFABRIC — saqlangan holat (2026-08-11)
+# LUXFABRIC — saqlangan holat (2026-08-13)
 
 **Maqsad:** ertaga / limit tugaganda chatni qayta ochib, shu fayldan davom etish.
 
 **Vizual:** `docs/VIZUAL-TIZIM.md` + rasmlar  
 **Real (production) reja:** `docs/PRODUCTION-REJA.md` — test emas, to‘liq ishlashi kerak  
 **Deploy + Neon:** `docs/VERCEL-DEPLOY.md`  
-**Tiklash PDF (private, parollar o‘zingiz):** `docs/private/LOYIHA-TIKLASH.pdf` — qanday: `docs/LOYIHA-TIKLASH-QANDAY.md`
+**Tiklash PDF (private, parollar o‘zingiz):** `docs/private/LOYIHA-TIKLASH.pdf` — qanday: `docs/LOYIHA-TIKLASH-QANDAY.md`  
+**To‘liq Meta/Instagram holat PDF (parolli, sirlar):** `docs/private/LUXFABRIC-HOLAT-META-INSTAGRAM-2026-08-13.pdf` — ochish paroli faqat `docs/private/PDF-PAROL.txt` da. **Bu fayllarni gitga commit qilmang.**
 
 **Oldingi chat:** [Instagram Reels musiqa](d78b58f1-3fb6-49e9-b3d6-7efb219cdec9)
 
@@ -13,8 +14,9 @@
 **Lokal:** `http://localhost:3000`  
 **Production URL:** https://luxfabric-qhy9.vercel.app  
 **Domen:** https://www.luxfabricshop.uz (apex → www 308)  
-**Admin Instagram:** `/admin/instagram`  
-**Do‘kon Reels:** `/instagram`
+**Admin:** `/admin/login` (email: `admin@luxfabricshop.uz`)  
+**Admin Instagram:** `/admin/instagram` — **Reels | Stories | Meta/DM**  
+**Do‘kon Reels:** `/instagram` · Stories preview: `/instagram/story/[id]` · havola: `/i/[slug]`
 
 ---
 
@@ -73,9 +75,13 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Lib: `src/lib/instagram-graph.ts` (Reels/Stories publish, IG user resolve, DM)
 - API: `POST /api/admin/instagram/publish` `{ type: "reel"|"story", id }` · `GET ?action=test`
 - UI: Reels/Stories ro‘yxatida **«Instagramga joylash»**
-- Sozlamalar: Page token, IG User ID, `app_domain` (HTTPS public — localhost Meta o‘qimaydi)
-- Webhook DM: `/api/instagram` (verify + messaging + changes)
+- Sozlamalar: Page yoki Instagram Login token, IG User ID, App Secret, `app_domain` (HTTPS public — localhost Meta o‘qimaydi)
+- OAuth: `/api/admin/instagram/oauth/start` + callback `https://www.luxfabricshop.uz/api/admin/instagram/oauth/callback`
+- Instagram Login token: `graph.instagram.com` (Page linksiz ham publish)
+- Webhook DM: `/api/instagram` (verify token: `luxfabric_verify` + messaging + changes)
 - Schema: `metaMediaId`, `metaPublishedAt` (Reel/Story)
+- Meta App ID `1228095102789379` · IG App ID `1081297184404685` · IG `@luxfabric.shop` (ID prod da Admin Meta/DM da)
+- **Sirlar (token/parol):** faqat `docs/private/` PDF — bu holat fayliga yozilmaydi
 
 ### 1) Musiqa kutubxonasi
 - MP3 tanlanganda **darhal** DB kutubxonaga yoziladi.
@@ -112,18 +118,43 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 
 ---
 
+## Instagram tez xarid + sharhlar + AI (2026-08-13)
+
+### A) Bir-bosishda sotib olish
+- `/i/[slug]` endi redirect emas — mobil landing: rasm, narx, o‘lcham, sticky **«Sotib olish»** → checkout.
+- `?from=instagram` mahsulot sahifasida ham asosiy CTA kattalashtirilgan.
+- FAQ blurb `/i/[slug]` da (narx / o‘lcham / yetkazish / qaytarish).
+
+### B) Sharhlar (Wildberries-lite)
+- Prisma: `Review` + migrate `20260813030000_product_reviews`
+- UI: yulduz, matn, foto (Blob/`/api/reviews/upload`), buyurtma№+telefon → auto APPROVED
+- Admin: `/admin/reviews` (PENDING tasdiq/rad)
+- Mahsulot + `/i/[slug]` da tasdiqlangan sharhlar
+
+### C) AI izoh / DM
+- Webhook `/api/instagram`: `comments` + DM; bir izohga bir marta (`InstagramCommentReply`)
+- `OPENAI_API_KEY` bo‘lsa ChatGPT, yo‘q bo‘lsa shablon (`src/lib/shop-ai-reply.ts`)
+- Meta App → Webhooks: `messages` + **`comments`** (va/yoki live_comments) subscribe qilish kerak
+- Graph: `POST /{comment-id}/replies`
+
+---
+
 ## Hali qilinmagan / keyingi qadamlar
 
 - [x] **Neon DATABASE_URL** → Vercel env + redeploy (seed buildda avtomatik)
 - [x] **Admin parol** → `/admin/login` + `ADMIN_PASSWORD`
 - [x] **Vercel Blob** → `luxfabric-media` store (video/musiqa/rasm)
+- [x] **Instagram Login OAuth** + ulanish testi (IG Business ID saqlangan)
+- [x] **Meta/Instagram holat PDF** → `docs/private/` (parolli; gitignore)
+- [x] **`/i/[slug]` bir-bosishda sotib olish** + sharhlar MVP
 - [ ] Telefon/ISP da domen ochilishini tasdiqlash
-- [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy)
-- [ ] Meta token + webhook prod
+- [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy — AI izoh/sharh uchun)
+- [ ] Webhook Meta dashboardda **comments** field + yakuniy tasdiq
 - [ ] Birinchi real Reel joylash
 - [ ] Neon parol Reset (xavfsizlik)
 - [ ] Buyurtma/SMS/to‘lov oqimi tekshiruvi
 - [ ] Monitoring
+- [ ] To‘liq WB: Q&A tarmoq, “faqat xarid qilganlar”, video-sharh, reyting filtri
 
 ---
 

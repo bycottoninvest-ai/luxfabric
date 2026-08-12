@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generateOrderNumber, formatSom, isValidUzPhone, maskUzPhone } from "@/lib/utils";
 import { pickWarehouseForCity } from "@/lib/warehouse";
 import { notifyOrderCreated, notifyDirector } from "@/lib/notify";
+import { buildClickPayUrlForOrder } from "@/lib/click";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -98,7 +99,13 @@ export async function POST(req: Request) {
     });
 
     const orderNumber = generateOrderNumber();
-    const paymentStatus = body.paymentMethod === "COD" ? "PENDING" : "PAID";
+    // Click/Payme: PAID faqat webhook (Click) yoki keyingi integratsiyada; COD — yetkazishgacha
+    const paymentStatus =
+      body.paymentMethod === "COD" ||
+      body.paymentMethod === "CLICK" ||
+      body.paymentMethod === "PAYME"
+        ? "PENDING"
+        : "PAID";
     const source = body.source || "STORE";
     const label = deliveryLabel(
       body.deliveryType,
@@ -180,12 +187,23 @@ export async function POST(req: Request) {
       director = { error: e instanceof Error ? e.message : "fail" };
     }
 
+    let paymentUrl: string | null = null;
+    if (body.paymentMethod === "CLICK") {
+      try {
+        paymentUrl = await buildClickPayUrlForOrder(order.orderNumber, total);
+      } catch (e) {
+        console.error("[CLICK] pay url", e);
+      }
+    }
+
     return NextResponse.json({
       orderNumber: order.orderNumber,
       id: order.id,
       warehouse: warehouse.name,
       deliveryType: body.deliveryType,
       deliveryLabel: label,
+      paymentStatus: order.paymentStatus,
+      paymentUrl,
       notify,
       director,
     });

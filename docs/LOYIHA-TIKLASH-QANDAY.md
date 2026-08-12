@@ -1,17 +1,18 @@
 # LUXFABRIC — tiklash PDF qayerda?
 
-**Private fayl (parollar uchun):**  
-`docs/private/LOYIHA-TIKLASH.pdf`  
-(va xuddi shu papkada `LOYIHA-TIKLASH.md`)
+**Private fayllar (parollar / sirlar uchun):**  
+- `docs/private/LOYIHA-TIKLASH.pdf` (+ `LOYIHA-TIKLASH.md`) — akkaunt jadvali  
+- `docs/private/LUXFABRIC-HOLAT-META-INSTAGRAM-2026-08-13.pdf` — **parol bilan ochiladi** (Meta/Instagram/admin to‘liq holat)  
+- Ochish paroli: `docs/private/PDF-PAROL.txt`
 
 ## Nima qilish kerak
 
-1. PDF ni oching.
-2. Akkauntlar jadvalidagi **parol** kataklariga o‘zingiz yozing.
-3. Faylni xavfsiz joyda saqlang (USB / shaxsiy disk).
+1. Yangi holat PDF ni oching (parol `PDF-PAROL.txt` dan).
+2. Eski `LOYIHA-TIKLASH.pdf` da akkauntlar jadvalidagi bo‘sh kataklarni o‘zingiz to‘ldiring.
+3. Fayllarni xavfsiz joyda saqlang (USB / shaxsiy disk).
 
 ## Muhim
 
 - `docs/private/` **gitga commit qilinmasin** (`.gitignore` da).
-- Haqiqiy parollarni chatga / public docga yozmang.
+- Haqiqiy parollarni public docga yozmang.
 - Umumiy holat (parolsiz): `docs/HOLAT-SAQLANGAN.md`

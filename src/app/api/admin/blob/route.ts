@@ -29,7 +29,8 @@ export async function POST(request: Request): Promise<NextResponse> {
           pathname.startsWith("reels/") ||
           pathname.startsWith("music/") ||
           pathname.startsWith("stories/") ||
-          pathname.startsWith("products/");
+          pathname.startsWith("products/") ||
+          pathname.startsWith("reviews/");
         if (!allowed) throw new Error("Noto‘g‘ri papka");
         return {
           allowedContentTypes: [
@@ -47,7 +48,9 @@ export async function POST(request: Request): Promise<NextResponse> {
             "audio/ogg",
             "audio/x-m4a",
           ],
-          maximumSizeInBytes: 80 * 1024 * 1024,
+          maximumSizeInBytes: pathname.startsWith("reviews/")
+            ? 4 * 1024 * 1024
+            : 80 * 1024 * 1024,
           addRandomSuffix: false,
           tokenPayload: JSON.stringify({ email: session.email }),
         };
