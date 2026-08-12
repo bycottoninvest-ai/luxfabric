@@ -1,5 +1,6 @@
 import { formatSom } from "@/lib/utils";
 import { getAppUrl, getSetting } from "@/lib/settings";
+import { instagramBioUrl, productBuyUrl, publicShopOrigin } from "@/lib/ig-caption";
 
 export type ShopReplyContext = {
   productName?: string | null;
@@ -20,8 +21,8 @@ function openaiModel() {
 /** Oddiy kalit so‘z shabloni — OPENAI bo‘lmasa yoki xato bo‘lsa. */
 export function templateShopReply(text: string, ctx: ShopReplyContext = {}) {
   const buyHint = ctx.productSlug
-    ? `Sotib olish: /i/${ctx.productSlug}`
-    : "Katalog: /instagram yoki luxfabricshop.uz";
+    ? `Sotib olish: https://www.luxfabricshop.uz/i/${ctx.productSlug}?from=ig`
+    : "Katalog: https://www.luxfabricshop.uz/instagram";
   const priceHint =
     typeof ctx.price === "number"
       ? `Narx: ${formatSom(ctx.price)}.`
@@ -72,12 +73,10 @@ export async function generateShopReply(
     return { reply: templateShopReply("salom", ctx), source: "template" };
   }
 
-  const domain =
-    ((await getSetting("app_domain")) || (await getAppUrl()) || "https://www.luxfabricshop.uz").replace(
-      /\/$/,
-      ""
-    );
-  const buyUrl = ctx.productSlug ? `${domain}/i/${ctx.productSlug}` : `${domain}/instagram`;
+  const domain = publicShopOrigin(
+    (await getSetting("app_domain")) || (await getAppUrl()) || "https://www.luxfabricshop.uz"
+  );
+  const buyUrl = ctx.productSlug ? productBuyUrl(domain, ctx.productSlug) : instagramBioUrl(domain);
 
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
   if (openaiKey) {

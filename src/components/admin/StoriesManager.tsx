@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ImageIcon, Trash2, Upload, Video } from "lucide-react";
 import { formatSom } from "@/lib/utils";
 import { uploadAdminMedia } from "@/lib/client-upload";
+import { productBuyUrl } from "@/lib/ig-caption";
 
 type Product = { id: string; name: string; slug: string; price: number };
 type Story = {
@@ -26,8 +27,7 @@ async function uploadStoryMedia(file: File, kind: "image" | "video") {
 }
 
 function shareBase() {
-  if (typeof window === "undefined") return "";
-  return window.location.origin;
+  return "https://www.luxfabricshop.uz";
 }
 
 export function StoriesManager({
@@ -342,7 +342,7 @@ export function StoriesManager({
                   type="button"
                   onClick={() =>
                     copyText(
-                      `${shareBase()}/i/${s.product!.slug}`,
+                      productBuyUrl(shareBase(), s.product!.slug),
                       "Story havolasi nusxalandi — Instagram Storyga qo‘ying"
                     )
                   }

@@ -25,11 +25,14 @@ type Props = {
     image: string;
   };
   variants: Variant[];
+  /** Instagram / short-link kirish — yumshoq banner */
+  fromIg?: boolean;
 };
 
-export function InstantBuy({ product, variants }: Props) {
+export function InstantBuy({ product, variants, fromIg }: Props) {
   const router = useRouter();
   const addItem = useCart((s) => s.addItem);
+  const clear = useCart((s) => s.clear);
 
   const colors = useMemo(() => {
     const map = new Map<string, { color: string; colorHex: string }>();
@@ -57,6 +60,8 @@ export function InstantBuy({ product, variants }: Props) {
 
   function buyNow() {
     if (!selected || max < 1) return;
+    // IG tez xarid: savatda faqat shu mahsulot
+    clear();
     addItem({
       productId: product.id,
       variantId: selected.id,
@@ -70,7 +75,7 @@ export function InstantBuy({ product, variants }: Props) {
       quantity: 1,
       maxStock: max,
     });
-    router.push("/checkout?from=instagram");
+    router.push("/checkout?from=ig");
   }
 
   const discount =
@@ -80,6 +85,12 @@ export function InstantBuy({ product, variants }: Props) {
 
   return (
     <div className="relative">
+      {fromIg && (
+        <div className="border-b border-lf-red/20 bg-lf-pink px-3 py-2.5 text-center text-sm font-medium text-lf-text">
+          Instagramdan kelganingiz uchun — 1 bosishda buyurtma
+        </div>
+      )}
+
       <div className="relative aspect-[4/5] w-full overflow-hidden bg-lf-cream">
         {product.image ? (
           <Image
@@ -107,19 +118,19 @@ export function InstantBuy({ product, variants }: Props) {
         )}
       </div>
 
-      <div className="space-y-3 px-1 pt-3 pb-28">
+      <div className="space-y-3 px-3 pt-3 pb-36">
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-extrabold">{formatSom(product.price)}</span>
+          <span className="text-3xl font-extrabold tracking-tight">{formatSom(product.price)}</span>
           {product.oldPrice != null && product.oldPrice > product.price && (
             <span className="text-sm text-lf-muted line-through">{formatSom(product.oldPrice)}</span>
           )}
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs text-lf-muted">
-          <div className="flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 border border-lf-border">
+          <div className="flex items-center gap-1.5 rounded-xl border border-lf-border bg-white px-2.5 py-2">
             <Truck className="h-3.5 w-3.5 text-lf-red" /> 1–2 kun yetkazish
           </div>
-          <div className="flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 border border-lf-border">
+          <div className="flex items-center gap-1.5 rounded-xl border border-lf-border bg-white px-2.5 py-2">
             <ShieldCheck className="h-3.5 w-3.5 text-lf-red" /> 14 kun qaytarish
           </div>
         </div>
@@ -157,9 +168,9 @@ export function InstantBuy({ product, variants }: Props) {
         )}
 
         <div>
-          <div className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.12em] text-lf-muted">
-            <span>O‘lcham</span>
-            <span className="normal-case tracking-normal text-lf-red">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-bold text-lf-text">1. O‘lchamni tanlang</span>
+            <span className="text-xs font-semibold text-lf-red">
               {max > 0 ? `${size} — bor` : "Tugagan"}
             </span>
           </div>
@@ -170,7 +181,7 @@ export function InstantBuy({ product, variants }: Props) {
                 type="button"
                 disabled={v.stock < 1}
                 onClick={() => setSize(v.size)}
-                className={`min-w-12 rounded-xl border px-3 py-2.5 text-sm font-semibold disabled:opacity-30 ${
+                className={`min-w-14 rounded-xl border px-4 py-3.5 text-base font-bold disabled:opacity-30 ${
                   size === v.size ? "border-lf-red bg-lf-red text-white" : "border-lf-border bg-white"
                 }`}
               >
@@ -181,20 +192,20 @@ export function InstantBuy({ product, variants }: Props) {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-lf-border bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-lf-border bg-white/98 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-xl">
         <div className="mx-auto max-w-lg">
+          <p className="mb-1.5 text-center text-[11px] font-medium text-lf-muted">
+            2. Keyin — checkout (mahsulot savatda)
+          </p>
           <button
             type="button"
             onClick={buyNow}
             disabled={!selected || max < 1}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-lf-red py-4 text-base font-bold text-white shadow-lg shadow-lf-red/25 transition active:scale-[0.99] disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-lf-red py-5 text-lg font-extrabold tracking-wide text-white shadow-lg shadow-lf-red/30 transition active:scale-[0.99] disabled:opacity-40"
           >
-            <Zap className="h-5 w-5" />
+            <Zap className="h-6 w-6" />
             Sotib olish · {formatSom(product.price)}
           </button>
-          <p className="mt-1.5 text-center text-[11px] text-lf-muted">
-            Bir bosishda checkout — o‘lchamni tanlang
-          </p>
         </div>
       </div>
     </div>

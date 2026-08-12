@@ -16,8 +16,14 @@ export function publicShopOrigin(domain?: string | null): string {
   }
 }
 
+/** Instagram / bio / caption — doim www + /i/{slug}?from=ig */
 export function productBuyUrl(domain: string | null | undefined, slug: string): string {
-  return `${publicShopOrigin(domain)}/i/${slug}`;
+  return `${publicShopOrigin(domain)}/i/${encodeURIComponent(slug)}?from=ig`;
+}
+
+/** Bio / QR uchun Reels kirish (katalog emas — qizil Sotib olish bor). */
+export function instagramBioUrl(domain?: string | null): string {
+  return `${publicShopOrigin(domain)}/instagram`;
 }
 
 /** Captiondagi eski «Sotib olish» / buy URL qatorlarini tozalash (qayta joylash uchun). */

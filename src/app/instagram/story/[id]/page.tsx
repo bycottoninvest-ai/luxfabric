@@ -70,12 +70,15 @@ export default async function InstagramStoryPreviewPage({ params }: Props) {
               ) : null}
             </div>
             {story.product && (
-              <Link
-                href={`/i/${story.product.slug}`}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
-              >
-                <ShoppingBag className="h-4 w-4" /> {story.linkLabel || "Sotib olish"}
-              </Link>
+              <div className="space-y-1">
+                <Link
+                  href={`/i/${story.product.slug}?from=ig`}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
+                >
+                  <ShoppingBag className="h-4 w-4" /> {story.linkLabel || "Sotib olish"}
+                </Link>
+                <p className="text-center text-[10px] text-white/65">O‘lcham → buyurtma</p>
+              </div>
             )}
           </div>
         </div>

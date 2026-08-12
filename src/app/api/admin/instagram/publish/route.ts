@@ -143,22 +143,26 @@ export async function POST(req: Request) {
       }
 
       const commentHint = firstComment?.ok
-        ? " Birinchi izohda «Sotib olish» havolasi bor — postda Izohlar ni oching."
+        ? " Caption + birinchi izohda Sotib olish linki chiqadi."
         : firstComment
           ? ` Izoh yozilmadi: ${firstComment.error}`
-          : "";
+          : buyUrl
+            ? " Mahsulot yo‘q emas, lekin izoh yozilmadi."
+            : " Mahsulot bog‘lanmagan — izoh/URL yo‘q.";
 
       return NextResponse.json({
         ok: true,
         type: "reel",
         mediaId: published.mediaId,
-        captionPreview: caption.slice(0, 180),
+        captionPreview: caption.slice(0, 220),
         buyUrl: buyUrl || undefined,
         firstComment,
         productTag,
-        message: `Reel Instagramga joylandi ✓ (feed/Публикации + Reels).${commentHint}`,
+        message: `Reel Instagramga joylandi ✓${commentHint}`,
+        successHint:
+          "Caption + birinchi izohda Sotib olish linki chiqadi. Mijoz: link → o‘lcham → Sotib olish.",
         note:
-          "Instagram ilovasida qizil «SOTIB OLISH» overlay chizib bo‘lmaydi (Meta cheklovi). Qizil tugma — saytda /instagram. Telefondan qo‘lda joylasangiz — avto izoh/CTA ishlamaydi; Admin → Instagramga joylash kerak.",
+          "IG appda qizil overlay yo‘q (Meta). Qizil tugma — sayt /instagram. Qo‘lda telefon joylash — avto izoh ishlamaydi.",
       });
     }
 

@@ -134,13 +134,22 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 
 Kod: `ig-caption.ts` (CTA yuqoriga), `instagram-graph.ts` (`commentOnInstagramMediaWithRetry`), publish route. Mahsulot stub: `Product.metaCatalogProductId` + Meta/DM da «Katalog ID».
 
+### Kelishilgan tez-xarid oqimi (biz nazorat qilamiz)
+
+1. **IG post:** caption + birinchi izoh → `https://www.luxfabricshop.uz/i/{slug}?from=ig`
+2. **Sahifa:** o‘lcham tanlash → katta **Sotib olish** → checkout (savatda shu mahsulot)
+3. **Bio / QR:** `https://www.luxfabricshop.uz/instagram` (Admin Meta/DM da nusxa) → qizil Sotib olish → `/i/slug`
+
+Publish muvaffaqiyatida Admin da success panel + nusxalanadigan URL. Shopping/Commerce — keyinga (ixtiyoriy).
+
 ---
 
 ## Instagram tez xarid + sharhlar + AI (2026-08-13)
 
 ### A) Bir-bosishda sotib olish
-- `/i/[slug]` endi redirect emas — mobil landing: rasm, narx, o‘lcham, sticky **«Sotib olish»** → checkout.
-- `?from=instagram` mahsulot sahifasida ham asosiy CTA kattalashtirilgan.
+- `/i/[slug]` mobil landing: rasm, narx, o‘lcham, sticky **«Sotib olish»** → checkout (savat tozalanib shu model qo‘yiladi).
+- `?from=ig` — soft banner «Instagramdan kelganingiz uchun…»; `?from=instagram` ham ishlaydi.
+- «Boshqa mahsulotlar» CTA + carousel yuqoriroq.
 - FAQ blurb `/i/[slug]` da (narx / o‘lcham / yetkazish / qaytarish).
 
 ### B) Sharhlar (Wildberries-lite)
@@ -168,7 +177,8 @@ Kod: `ig-caption.ts` (CTA yuqoriga), `instagram-graph.ts` (`commentOnInstagramMe
 - [ ] Telefon/ISP da domen ochilishini tasdiqlash
 - [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy — AI izoh/sharh uchun)
 - [ ] Webhook Meta dashboardda **comments** field + yakuniy tasdiq
-- [x] Admin publish: caption CTA yuqorida + avto birinchi izoh
+- [x] Admin publish: caption CTA yuqorida + avto birinchi izoh + success UI / nusxa URL
+- [x] Kelishilgan tez-xarid: `/i?from=ig` + bio `/instagram` + izoh retry mustahkam
 - [ ] Birinchi real Reel **Admin orqali** qayta joylash (izohni tekshirish)
 - [ ] (Ixtiyoriy) Instagram Shop / Commerce — product tag
 - [ ] Neon parol Reset (xavfsizlik)

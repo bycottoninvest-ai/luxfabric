@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Music2, Trash2, Upload, Video } from "lucide-react";
+import { Copy, Music2, Trash2, Upload, Video } from "lucide-react";
 import { formatSom } from "@/lib/utils";
 import { uploadAdminMedia } from "@/lib/client-upload";
+import { productBuyUrl } from "@/lib/ig-caption";
+
+const PUBLIC_ORIGIN = "https://www.luxfabricshop.uz";
 
 type Product = { id: string; name: string; slug: string; price: number };
 type MusicTrack = {
@@ -77,6 +80,13 @@ export function ReelsManager({
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [chatgpt, setChatgpt] = useState<{ configured: boolean; model: string | null } | null>(null);
+  const [publishOk, setPublishOk] = useState<{
+    reelTitle: string;
+    buyUrl?: string;
+    firstCommentOk?: boolean;
+    firstCommentError?: string;
+    message: string;
+  } | null>(null);
 
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
@@ -131,8 +141,7 @@ export function ReelsManager({
   }
 
   function shareBase() {
-    if (typeof window !== "undefined") return window.location.origin;
-    return "https://luxfabricshop.uz";
+    return PUBLIC_ORIGIN;
   }
 
   /** Mahsulot/AI matn uchun treklarni avtomatik tanlaydi. */
@@ -369,7 +378,8 @@ export function ReelsManager({
 
   async function publishReelToMeta(reel: Reel) {
     setBusy(true);
-    setMsg("Instagramga yuklanmoqda… (Meta video tayyorlaydi, 30–90 soniya)");
+    setPublishOk(null);
+    setMsg("Instagramga yuklanmoqda… (Meta video tayyorlaydi, 30–90 soniya + izoh)");
     try {
       const res = await fetch("/api/admin/instagram/publish", {
         method: "POST",
@@ -385,13 +395,20 @@ export function ReelsManager({
             : r
         )
       );
-      const bits = [data.message || "Reel Instagramga joylandi ✓"];
-      if (data.firstComment?.ok) bits.push("Birinchi izoh ✓ — IG da «Izohlar»ni oching.");
-      else if (data.firstComment?.error) bits.push(`Izoh: ${data.firstComment.error}`);
-      if (data.buyUrl) bits.push(data.buyUrl);
-      setMsg(bits.join(" "));
+      const buyUrl =
+        (typeof data.buyUrl === "string" && data.buyUrl) ||
+        (reel.product ? productBuyUrl(PUBLIC_ORIGIN, reel.product.slug) : undefined);
+      setPublishOk({
+        reelTitle: reel.title,
+        buyUrl,
+        firstCommentOk: Boolean(data.firstComment?.ok),
+        firstCommentError: data.firstComment?.error,
+        message: data.message || "Reel Instagramga joylandi ✓",
+      });
+      setMsg(data.message || "Reel Instagramga joylandi ✓");
       router.refresh();
     } catch (e) {
+      setPublishOk(null);
       setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Publish xatosi");
     } finally {
       setBusy(false);
@@ -678,6 +695,60 @@ export function ReelsManager({
         </button>
       </section>
 
+      {publishOk && (
+        <section className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h2 className="font-semibold text-emerald-200">Instagramga joylandi ✓</h2>
+              <p className="mt-1 text-sm text-white/85">{publishOk.reelTitle}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPublishOk(null)}
+              className="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-white/70"
+            >
+              Yopish
+            </button>
+          </div>
+          <p className="rounded-xl bg-black/30 px-3 py-2 text-sm font-medium text-white">
+            Caption + birinchi izohda Sotib olish linki chiqadi
+          </p>
+          <ul className="space-y-1 text-xs text-white/70">
+            <li>
+              Birinchi izoh:{" "}
+              {publishOk.firstCommentOk ? (
+                <span className="text-emerald-300">✓ yozildi — IGda «Izohlar»ni oching</span>
+              ) : publishOk.firstCommentError ? (
+                <span className="text-amber-300">❗ {publishOk.firstCommentError}</span>
+              ) : (
+                <span className="text-white/45">mahsulot bog‘lanmagan</span>
+              )}
+            </li>
+            <li className="text-white/55">{publishOk.message}</li>
+          </ul>
+          {publishOk.buyUrl && (
+            <div className="space-y-1.5">
+              <div className="text-xs text-white/45">Mahsulot URL (nusxa → Story / DM / bio)</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="max-w-full flex-1 break-all rounded-lg bg-black/40 px-2.5 py-2 text-[11px] text-emerald-100">
+                  {publishOk.buyUrl}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => copyText(publishOk.buyUrl!, "Mahsulot URL nusxalandi ✓")}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-lf-red px-3 py-2 text-xs font-semibold"
+                >
+                  <Copy className="h-3.5 w-3.5" /> Nusxa
+                </button>
+              </div>
+            </div>
+          )}
+          <p className="text-[11px] text-white/45">
+            Mijoz oqimi: link → o‘lcham → Sotib olish. IG appda qizil overlay yo‘q — bu Meta cheklovi.
+          </p>
+        </section>
+      )}
+
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
         <h2 className="font-semibold">Reels ro‘yxati ({reels.length})</h2>
         {reels.length === 0 && <p className="text-xs text-white/40">Hali Reel yo‘q — yuqoridan yarating.</p>}
@@ -733,7 +804,7 @@ export function ReelsManager({
                   type="button"
                   onClick={() =>
                     copyText(
-                      `${shareBase()}/i/${r.product!.slug}`,
+                      productBuyUrl(shareBase(), r.product!.slug),
                       "Story havolasi nusxalandi — Instagram Story ga qo‘ying"
                     )
                   }

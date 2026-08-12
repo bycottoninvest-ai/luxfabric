@@ -164,12 +164,15 @@ function ReelCard({
             </div>
           )}
           {reel.showBuyButton && reel.product ? (
-            <Link
-              href={`/i/${reel.product.slug}`}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
-            >
-              <ShoppingBag className="h-4 w-4" /> {reel.buyButtonLabel || "Sotib olish"}
-            </Link>
+            <div className="space-y-1">
+              <Link
+                href={`/i/${reel.product.slug}?from=ig`}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
+              >
+                <ShoppingBag className="h-4 w-4" /> {reel.buyButtonLabel || "Sotib olish"}
+              </Link>
+              <p className="text-center text-[10px] text-white/65">O‘lcham → buyurtma</p>
+            </div>
           ) : reel.showBuyButton && !reel.product ? (
             <Link
               href="/catalog"

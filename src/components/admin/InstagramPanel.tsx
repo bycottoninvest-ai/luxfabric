@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, Copy, ExternalLink, Power } from "lucide-react";
+import { Check, Copy, ExternalLink, Link2, Power } from "lucide-react";
+import { instagramBioUrl, productBuyUrl, publicShopOrigin } from "@/lib/ig-caption";
 
 type Product = {
   id: string;
@@ -53,9 +54,10 @@ export function InstagramPanel({
     [form.app_domain, domain]
   );
   const storeBase = useMemo(
-    () => (form.app_domain || domain || "http://localhost:3000").replace(/\/$/, ""),
+    () => publicShopOrigin(form.app_domain || domain),
     [form.app_domain, domain]
   );
+  const bioUrl = useMemo(() => instagramBioUrl(form.app_domain || domain), [form.app_domain, domain]);
 
   async function save(extra?: Record<string, string>) {
     setLoading(true);
@@ -180,6 +182,42 @@ export function InstagramPanel({
         </button>
       </div>
 
+      <div className="rounded-2xl border border-lf-red/35 bg-lf-red/10 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-lf-red" />
+          <h2 className="font-semibold text-white">Link in bio / QR (tavsiya)</h2>
+        </div>
+        <p className="text-xs leading-relaxed text-white/70">
+          IG profil → <strong className="text-white">Tahrirlash</strong> →{" "}
+          <strong className="text-white">Havola</strong> — quyidagini qo‘ying. Mijozlar Reels + qizil
+          «Sotib olish»ga bir zumda kiradi.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="max-w-full flex-1 break-all rounded-lg bg-black/40 px-2.5 py-2 text-[12px] text-emerald-100">
+            {bioUrl}
+          </code>
+          <button
+            type="button"
+            onClick={() => copyText(bioUrl, "bio")}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-lf-red px-3 py-2 text-xs font-semibold"
+          >
+            {copied === "bio" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            Nusxa
+          </button>
+        </div>
+        <p className="text-[11px] text-white/45">
+          Alternativa (do‘kon bosh):{" "}
+          <button
+            type="button"
+            className="underline text-white/70"
+            onClick={() => copyText(`${storeBase}/`, "home")}
+          >
+            {storeBase}/
+          </button>
+          {copied === "home" ? " ✓" : ""}
+        </p>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="mb-2 text-xs text-white/45">Webhook URL (Meta ga qo‘ying)</div>
@@ -284,7 +322,7 @@ export function InstagramPanel({
           <h2 className="font-semibold">3. Shop Now mahsulot havolalari</h2>
           <div className="space-y-2">
             {products.map((p) => {
-              const link = `${storeBase}/i/${p.slug}?from=instagram`;
+              const link = productBuyUrl(storeBase, p.slug);
               return (
                 <div
                   key={p.id}

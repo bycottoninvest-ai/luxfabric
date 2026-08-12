@@ -8,14 +8,21 @@ import { getFeaturedProducts, getProductBySlug } from "@/lib/catalog";
 import { getApprovedReviews, getReviewStats } from "@/lib/reviews";
 import { formatSom } from "@/lib/utils";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ from?: string }>;
+};
 
 /**
  * Instagram / short-link landing — mobil bir-bosishda sotib olish.
- * Havola: https://www.luxfabricshop.uz/i/[slug]
+ * Havola: https://www.luxfabricshop.uz/i/[slug]?from=ig
  */
-export default async function InstagramInstantBuyPage({ params }: Props) {
+export default async function InstagramInstantBuyPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const sp = await searchParams;
+  const fromIg =
+    sp.from === "ig" || sp.from === "instagram" || sp.from === "reel" || sp.from === "story";
+
   const product = await getProductBySlug(slug);
   if (!product || product.status !== "ACTIVE") notFound();
 
@@ -76,16 +83,56 @@ export default async function InstagramInstantBuyPage({ params }: Props) {
             image,
           }}
           variants={variants}
+          fromIg={fromIg}
         />
 
         <div className="space-y-3 px-3 pb-8">
           <Link
             href="/catalog"
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-lf-border bg-white py-3 text-sm font-semibold text-lf-text shadow-sm"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-lf-red/40 bg-white py-3.5 text-sm font-bold text-lf-text shadow-sm"
           >
             <LayoutGrid className="h-4 w-4 text-lf-red" />
             Boshqa mahsulotlar
           </Link>
+
+          {related.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between px-0.5">
+                <h2 className="text-base font-bold text-lf-text">Boshqa mahsulotlar</h2>
+                <Link href="/catalog" className="text-xs font-semibold text-lf-red">
+                  Katalog
+                </Link>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {related.map((p) => {
+                  const img = p.images[0]?.url;
+                  return (
+                    <Link
+                      key={p.id}
+                      href={`/i/${p.slug}?from=ig`}
+                      className="w-[42%] shrink-0 overflow-hidden rounded-2xl border border-lf-border bg-white shadow-sm"
+                    >
+                      <div className="relative aspect-[3/4] bg-[#f0f0f2]">
+                        {img && (
+                          <Image
+                            src={img}
+                            alt={p.images[0]?.alt || p.name}
+                            fill
+                            className="object-cover"
+                            sizes="42vw"
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-0.5 p-2.5">
+                        <div className="line-clamp-2 text-xs font-semibold leading-snug">{p.name}</div>
+                        <div className="text-sm font-bold text-lf-red">{formatSom(p.price)}</div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           <section className="rounded-3xl border border-lf-border bg-white p-4 text-sm leading-relaxed text-lf-muted shadow-sm">
             <h2 className="text-base font-bold text-lf-text">Tez savollar</h2>
@@ -122,45 +169,6 @@ export default async function InstagramInstantBuyPage({ params }: Props) {
             initialCount={stats.count}
             compact
           />
-
-          {related.length > 0 && (
-            <section>
-              <div className="mb-2 flex items-center justify-between px-0.5">
-                <h2 className="text-base font-bold text-lf-text">Boshqa mahsulotlar</h2>
-                <Link href="/catalog" className="text-xs font-semibold text-lf-red">
-                  Katalog
-                </Link>
-              </div>
-              <div className="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {related.map((p) => {
-                  const img = p.images[0]?.url;
-                  return (
-                    <Link
-                      key={p.id}
-                      href={`/i/${p.slug}`}
-                      className="w-[42%] shrink-0 overflow-hidden rounded-2xl border border-lf-border bg-white shadow-sm"
-                    >
-                      <div className="relative aspect-[3/4] bg-[#f0f0f2]">
-                        {img && (
-                          <Image
-                            src={img}
-                            alt={p.images[0]?.alt || p.name}
-                            fill
-                            className="object-cover"
-                            sizes="42vw"
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-0.5 p-2.5">
-                        <div className="line-clamp-2 text-xs font-semibold leading-snug">{p.name}</div>
-                        <div className="text-sm font-bold text-lf-red">{formatSom(p.price)}</div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          )}
         </div>
       </main>
     </div>

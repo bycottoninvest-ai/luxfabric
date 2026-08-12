@@ -93,12 +93,15 @@ export default async function InstagramReelsPage({ searchParams }: Props) {
                     <div className="mt-1 text-sm">{p.name}</div>
                     <div className="text-xs text-white/70">{formatSom(p.price)}</div>
                   </div>
-                  <Link
-                    href={`/i/${p.slug}`}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
-                  >
-                    <ShoppingBag className="h-4 w-4" /> Sotib olish
-                  </Link>
+                  <div className="space-y-1">
+                    <Link
+                      href={`/i/${p.slug}?from=ig`}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
+                    >
+                      <ShoppingBag className="h-4 w-4" /> Sotib olish
+                    </Link>
+                    <p className="text-center text-[10px] text-white/65">O‘lcham → buyurtma</p>
+                  </div>
                 </div>
               </div>
             </article>

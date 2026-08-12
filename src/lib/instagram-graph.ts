@@ -348,15 +348,17 @@ export async function commentOnInstagramMedia(mediaId: string, message: string) 
   return { commentId: data.id };
 }
 
-/** Publishdan keyin media biroz kechikishi mumkin — 3 marta urinib ko‘radi. */
+/** Publishdan keyin media biroz kechikishi mumkin — kutib, keyin bir necha marta urinadi. */
 export async function commentOnInstagramMediaWithRetry(
   mediaId: string,
   message: string,
-  attempts = 3
+  attempts = 5
 ) {
   let lastErr: unknown;
+  // Meta container → media id ba’zan 2–8 s keyin comment qabul qiladi
+  await new Promise((r) => setTimeout(r, 2500));
   for (let i = 0; i < attempts; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 2000 * i));
+    if (i > 0) await new Promise((r) => setTimeout(r, 2500 * i));
     try {
       return await commentOnInstagramMedia(mediaId, message);
     } catch (e) {
