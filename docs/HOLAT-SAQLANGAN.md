@@ -232,6 +232,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 | `355a21e` … `d624ecd` | Caption CTA + first comment + `from=ig` |
 | `c5db425` | Reels edit side panel |
 | `e16b4c4` | Reels archive + comments panel + AI toggle |
+| `fab28f3` | Buyurtma kuzatish maxfiyligi (telefon + device token) |
 
 ---
 
