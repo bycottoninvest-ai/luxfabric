@@ -12,6 +12,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
+    "music:trends": "node scripts/generate-trend-music.mjs",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "prisma": {

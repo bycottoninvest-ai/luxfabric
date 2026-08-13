@@ -6,13 +6,13 @@ import { randomBytes } from "crypto";
 import ffmpegPath from "ffmpeg-static";
 import { hasBlobStorage, storeUpload } from "@/lib/storage";
 
-/** `/uploads/...` → lokal path; https → /tmp ga yuklab olish. */
+/** `/uploads/...` yoki `/music/...` → lokal public; https → /tmp. */
 async function resolveMediaFile(
   url: string
 ): Promise<{ filePath: string; cleanup: () => Promise<void> }> {
   const clean = url.split("?")[0] || "";
 
-  if (clean.startsWith("/uploads/")) {
+  if (clean.startsWith("/uploads/") || clean.startsWith("/music/")) {
     return {
       filePath: path.join(
         process.cwd(),
@@ -41,7 +41,7 @@ async function resolveMediaFile(
     };
   }
 
-  throw new Error("Faqat /uploads/... yoki https media birlashtiriladi");
+  throw new Error("Faqat /uploads/..., /music/... yoki https media birlashtiriladi");
 }
 
 /**

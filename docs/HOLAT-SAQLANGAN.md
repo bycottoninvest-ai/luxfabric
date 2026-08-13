@@ -118,8 +118,12 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Schema: `metaMediaId`, `metaPublishedAt`
 
 ### 1) Musiqa + mux
-- MP3 → kutubxona (`ReelsManager`).
-- Saqlashda ffmpeg → `*-mux.mp4`, `audioEmbedded` (`src/lib/mux-reel-audio.ts`).
+- Admin Reels → **Musiqa kutubxonasi**: tablar **Xit / Trend | Kutubxona | Kompyuterdan**.
+- Trend: curated RF (`public/music/trends/` + `catalog.json`), API `GET /api/admin/instagram/music/trends`.
+- **Qonuniy:** Instagram/Meta hit MP3 scrape/pirat saqlash yo‘q. Meta Audio API (2026) — faqat Facebook Login + Sound Collection ID biriktirish; to‘liq xit katalogi / MP3 ochiq emas.
+- Trend tanlash → kutubxonaga + reel `musicId` → mux. Kompyuterdan yuklash saqlangan.
+- Regeneratsiya: `npm run music:trends` (`scripts/generate-trend-music.mjs`).
+- Saqlashda ffmpeg → `*-mux.mp4`, `audioEmbedded` (`src/lib/mux-reel-audio.ts`; `/music/...` ham).
 
 ### 2) AI matn / AI izoh
 - Caption: `/api/admin/ai/caption` · izoh/DM: `src/lib/shop-ai-reply.ts`
@@ -166,6 +170,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 | Workspace | `src/components/admin/InstagramWorkspace.tsx` |
 | Graph / caption / AI | `instagram-graph.ts`, `ig-caption.ts`, `shop-ai-reply.ts` |
 | Mux | `src/lib/mux-reel-audio.ts` |
+| Trend RF musiqa | `public/music/trends/`, `src/lib/trend-music.ts`, `api/.../music/trends` |
 | Webhook IG | `src/app/api/instagram/route.ts` |
 | Comments API | `src/app/api/admin/instagram/comments/route.ts` |
 | Click | `src/lib/click.ts`, `src/app/api/click/*` |
