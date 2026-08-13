@@ -422,6 +422,85 @@ export type IgMediaComment = {
   parentId?: string;
 };
 
+export type IgMediaItem = {
+  id: string;
+  caption: string;
+  mediaType: string;
+  mediaProductType: string;
+  thumbnailUrl: string | null;
+  permalink: string | null;
+  timestamp: string | null;
+  likeCount: number | null;
+  commentsCount: number | null;
+};
+
+/**
+ * Ulangan IG akkauntining media/Reels ro‘yxati: GET /{ig-user-id}/media
+ * Faqat o‘z Professional akkaunt — boshqa profil scrape qilinmaydi.
+ */
+export async function listOwnInstagramMedia(opts?: {
+  limit?: number;
+}): Promise<{ username: string | null; igUserId: string; media: IgMediaItem[] }> {
+  const pageToken =
+    (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
+  if (!pageToken.trim()) {
+    throw new IgPublishError("Page Access Token yo‘q — Meta / DM bo‘limiga token qo‘ying");
+  }
+
+  const preferredIg =
+    (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
+  const resolved = await resolveIgAccess(pageToken.trim(), preferredIg);
+  const token = resolved.pageTokenOverride || pageToken.trim();
+  const limit = Math.min(Math.max(opts?.limit ?? 24, 1), 50);
+  const fields =
+    "id,caption,media_type,media_product_type,thumbnail_url,media_url,permalink,timestamp,like_count,comments_count";
+  const url = `${resolved.graphBase}/${resolved.igUserId}/media?fields=${encodeURIComponent(fields)}&limit=${limit}&access_token=${encodeURIComponent(token)}`;
+  const res = await fetch(url);
+  const data = (await res.json()) as {
+    data?: Array<{
+      id?: string;
+      caption?: string;
+      media_type?: string;
+      media_product_type?: string;
+      thumbnail_url?: string;
+      media_url?: string;
+      permalink?: string;
+      timestamp?: string;
+      like_count?: number;
+      comments_count?: number;
+    }>;
+    error?: { message?: string };
+  };
+  if (!res.ok || data.error) {
+    throw new IgPublishError(data.error?.message || "IG media ro‘yxati olinmadi");
+  }
+
+  const media = (data.data || [])
+    .filter((m) => {
+      if (!m.id) return false;
+      const product = (m.media_product_type || "").toUpperCase();
+      const type = (m.media_type || "").toUpperCase();
+      return product === "REELS" || type === "VIDEO";
+    })
+    .map((m) => ({
+      id: String(m.id),
+      caption: (m.caption || "").slice(0, 500),
+      mediaType: String(m.media_type || ""),
+      mediaProductType: String(m.media_product_type || ""),
+      thumbnailUrl: m.thumbnail_url || m.media_url || null,
+      permalink: m.permalink || null,
+      timestamp: m.timestamp || null,
+      likeCount: typeof m.like_count === "number" ? m.like_count : null,
+      commentsCount: typeof m.comments_count === "number" ? m.comments_count : null,
+    }));
+
+  return {
+    username: resolved.username,
+    igUserId: resolved.igUserId,
+    media,
+  };
+}
+
 /**
  * Media izohlarini olish: GET /{media-id}/comments
  * Instagram Login: instagram_business_manage_comments

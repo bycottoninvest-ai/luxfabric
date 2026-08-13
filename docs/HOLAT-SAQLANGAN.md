@@ -121,7 +121,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Admin Reels → **Musiqa kutubxonasi** + o‘ngda **Instagram** yon panel:
   1. **Kompyuterdan tanlash** (NOMI / IJROCHI / MP3 + o‘z kutubxonasi + «Yaxshi — Reelga»)
   2. **URL dan** (ixtiyoriy) — faqat to‘g‘ridan-to‘g‘ri `.mp3/.m4a/.aac` yoki `Content-Type: audio/*` → `POST /api/admin/instagram/music/from-url` (`src/lib/import-audio-url.ts`)
-- Yon panel: `@luxfabric.shop` → yangi tabda Instagram; iframe odatda blok — izoh + sayt `/instagram` preview embed.
+- Yon panel: `@luxfabric.shop` → **Graph API** orqali o‘z Reels/VIDEO + izohlar (`GET /api/admin/instagram/feed`); «Yangi oynada Instagram» saqlangan. Meta iframe blok — sayt `/instagram` alohida link.
 - **Olib tashlangan:** Internet kutubxona / Trend·Xit RF UI + `GET .../music/trends` API (`trend-music.ts`). Eski RF fayllar `public/music/trends/` da qolishi mumkin (asosiy oqimda ko‘rinmaydi).
 - **Qonuniy rad:** Instagram Music Library / YouTube / Spotify / HTML sahifa scrape yoki pirate «har qanday saytdan skachat» — **yo‘q**.
 - «Yaxshi — Reelga» → `musicId` joriy yangi Reel draftiga darhol; saqlashda mux.

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeft,
   Copy,
   ExternalLink,
   Link2,
@@ -25,6 +26,30 @@ const PUBLIC_ORIGIN = "https://www.luxfabricshop.uz";
 const IG_PROFILE_URL = "https://www.instagram.com/luxfabric.shop/";
 const IG_HANDLE = "@luxfabric.shop";
 const SITE_REELS_PREVIEW = "/instagram";
+
+type IgFeedMedia = {
+  id: string;
+  caption: string;
+  mediaType: string;
+  mediaProductType: string;
+  thumbnailUrl: string | null;
+  permalink: string | null;
+  timestamp: string | null;
+  likeCount: number | null;
+  commentsCount: number | null;
+  localReelId?: string | null;
+  localTitle?: string | null;
+};
+
+type IgFeedComment = {
+  id: string;
+  commentId: string;
+  username: string;
+  text: string;
+  postedAt?: string | Date | null;
+  createdAt?: string | Date;
+  ourReplyText?: string | null;
+};
 
 type Product = { id: string; name: string; slug: string; price: number };
 type MusicTrack = {
@@ -146,6 +171,15 @@ export function ReelsManager({
   const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [igPanelOpen, setIgPanelOpen] = useState(true);
 
+  /** Yon panel — Graph API: o‘z IG Reels + izohlar */
+  const [igFeed, setIgFeed] = useState<IgFeedMedia[]>([]);
+  const [igFeedBusy, setIgFeedBusy] = useState(false);
+  const [igFeedMsg, setIgFeedMsg] = useState("");
+  const [igFeedUsername, setIgFeedUsername] = useState<string | null>(null);
+  const [igSelected, setIgSelected] = useState<IgFeedMedia | null>(null);
+  const [igFeedComments, setIgFeedComments] = useState<IgFeedComment[]>([]);
+  const [igCommentsBusy, setIgCommentsBusy] = useState(false);
+
   /** Yon panel — mavjud Reelni tahrirlash + izohlar */
   const [editing, setEditing] = useState<Reel | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("edit");
@@ -196,6 +230,65 @@ export function ReelsManager({
       cancelled = true;
     };
   }, []);
+
+  async function loadIgFeed(opts?: { silent?: boolean }) {
+    if (!opts?.silent) {
+      setIgFeedBusy(true);
+      setIgFeedMsg("");
+    }
+    try {
+      const res = await fetch("/api/admin/instagram/feed");
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || "IG feed olinmadi");
+      }
+      setIgFeed(Array.isArray(data.media) ? data.media : []);
+      setIgFeedUsername(data.username ? String(data.username) : null);
+      if (!opts?.silent) {
+        const n = Array.isArray(data.media) ? data.media.length : 0;
+        setIgFeedMsg(n ? `${n} ta Reel/Video` : "Reels topilmadi");
+      }
+    } catch (e) {
+      setIgFeed([]);
+      setIgFeedMsg(e instanceof Error ? `❗ ${e.message}` : "❗ IG feed xatosi");
+    } finally {
+      if (!opts?.silent) setIgFeedBusy(false);
+    }
+  }
+
+  async function openIgMediaComments(item: IgFeedMedia) {
+    setIgSelected(item);
+    setIgCommentsBusy(true);
+    setIgFeedMsg("");
+    setIgFeedComments([]);
+    try {
+      const res = await fetch(
+        `/api/admin/instagram/feed?mediaId=${encodeURIComponent(item.id)}`
+      );
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || "Izohlar olinmadi");
+      }
+      setIgFeedComments(Array.isArray(data.comments) ? data.comments : []);
+      setIgFeedMsg(
+        data.comments?.length
+          ? `${data.comments.length} izoh (Graph)`
+          : "Izoh yo‘q"
+      );
+    } catch (e) {
+      setIgFeedComments([]);
+      setIgFeedMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Izohlar xatosi");
+    } finally {
+      setIgCommentsBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!igPanelOpen) return;
+    void loadIgFeed({ silent: true });
+    // faqat panel ochilganda bir marta
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [igPanelOpen]);
 
   async function copyText(text: string, okMsg: string) {
     try {
@@ -1040,32 +1133,46 @@ export function ReelsManager({
         </div>
       </section>
 
-      {/* Yon panel — Instagram (iframe odatda bloklanadi) */}
+      {/* Yon panel — Instagram Graph (iframe Meta tomonidan bloklangan) */}
       <aside
         className={`${
           igPanelOpen ? "flex" : "hidden lg:flex"
-        } flex-col gap-3 rounded-2xl border border-pink-400/30 bg-gradient-to-b from-pink-500/10 to-white/5 p-3 lg:sticky lg:top-4`}
+        } flex-col gap-3 rounded-2xl border border-pink-400/30 bg-gradient-to-b from-pink-500/10 to-[#0a0a0c] p-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]`}
       >
         <div className="flex items-start justify-between gap-2">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.1em] text-pink-200/80">
               Instagram
             </div>
-            <div className="mt-0.5 text-sm font-semibold text-white">{IG_HANDLE}</div>
+            <div className="mt-0.5 text-sm font-semibold text-white">
+              {igFeedUsername ? `@${igFeedUsername}` : IG_HANDLE}
+            </div>
           </div>
-          <button
-            type="button"
-            className="rounded-lg bg-white/10 p-1.5 lg:hidden"
-            onClick={() => setIgPanelOpen(false)}
-            aria-label="Panelni yopish"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={igFeedBusy}
+              onClick={() => {
+                setIgSelected(null);
+                void loadIgFeed();
+              }}
+              className="rounded-lg bg-white/10 p-1.5 text-white/80 hover:bg-white/15 disabled:opacity-50"
+              title="Yangilash"
+              aria-label="Feedni yangilash"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${igFeedBusy ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-white/10 p-1.5 lg:hidden"
+              onClick={() => setIgPanelOpen(false)}
+              aria-label="Panelni yopish"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-        <p className="text-[11px] leading-relaxed text-white/50">
-          Instagram odatda iframe ichida ochilmaydi. Profilni yangi oynada oching; saytimiz Reels
-          preview pastda.
-        </p>
+
         <a
           href={IG_PROFILE_URL}
           target="_blank"
@@ -1075,6 +1182,146 @@ export function ReelsManager({
           <ExternalLink className="h-3.5 w-3.5" />
           Yangi oynada Instagram
         </a>
+
+        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10 bg-black/50">
+          {igSelected ? (
+            <div className="flex h-full max-h-[420px] flex-col">
+              <div className="flex items-center gap-2 border-b border-white/10 px-2 py-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIgSelected(null);
+                    setIgFeedComments([]);
+                    setIgFeedMsg(
+                      igFeed.length ? `${igFeed.length} ta Reel/Video` : ""
+                    );
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-[11px] text-white/85"
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  Orqaga
+                </button>
+                <span className="truncate text-[11px] text-white/55">
+                  {igSelected.localTitle ||
+                    igSelected.caption.slice(0, 40) ||
+                    "Reel"}
+                </span>
+                {igSelected.permalink && (
+                  <a
+                    href={igSelected.permalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto shrink-0 text-white/50 hover:text-white"
+                    title="Instagramda ochish"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+              <div className="flex-1 space-y-2 overflow-y-auto p-2">
+                {igCommentsBusy && (
+                  <p className="text-[11px] text-white/45">Izohlar yuklanmoqda…</p>
+                )}
+                {!igCommentsBusy && igFeedComments.length === 0 && (
+                  <p className="text-[11px] text-white/40">Izoh yo‘q</p>
+                )}
+                {igFeedComments.map((c) => (
+                  <div
+                    key={c.id || c.commentId}
+                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-pink-200/90">
+                        @{c.username || "user"}
+                      </span>
+                      <span className="text-[10px] text-white/35">
+                        {formatCommentTime(c.postedAt || c.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-snug text-white/85">
+                      {c.text}
+                    </p>
+                    {c.ourReplyText && (
+                      <p className="mt-1.5 border-l-2 border-emerald-500/50 pl-2 text-[11px] text-emerald-300/90">
+                        Javob: {c.ourReplyText}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex max-h-[420px] flex-col">
+              <div className="border-b border-white/10 px-2 py-1.5 text-[10px] uppercase tracking-wide text-white/35">
+                Graph · Reels / Video
+              </div>
+              <div className="flex-1 space-y-1.5 overflow-y-auto p-2">
+                {igFeedBusy && igFeed.length === 0 && (
+                  <p className="text-[11px] text-white/45">Yuklanmoqda…</p>
+                )}
+                {!igFeedBusy && igFeed.length === 0 && !igFeedMsg.startsWith("❗") && (
+                  <p className="text-[11px] leading-relaxed text-white/40">
+                    Meta token bo‘lsa, shu yerda {IG_HANDLE} ning joylangan Reels chiqadi. Token:
+                    Admin → Meta/DM.
+                  </p>
+                )}
+                {igFeed.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => void openIgMediaComments(m)}
+                    className="flex w-full gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-1.5 text-left transition hover:border-pink-400/40 hover:bg-white/[0.08]"
+                  >
+                    <div className="relative h-14 w-11 shrink-0 overflow-hidden rounded-md bg-black">
+                      {m.thumbnailUrl ? (
+                        <img
+                          src={m.thumbnailUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Video className="h-4 w-4 text-white/30" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="rounded bg-pink-500/20 px-1 py-0.5 text-[9px] font-semibold uppercase text-pink-200/90">
+                          {m.mediaProductType || m.mediaType || "VIDEO"}
+                        </span>
+                        <span className="text-[10px] text-white/35">
+                          {formatCommentTime(m.timestamp)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/80">
+                        {m.localTitle || m.caption || "Caption yo‘q"}
+                      </p>
+                      <div className="mt-1 flex items-center gap-2 text-[10px] text-white/40">
+                        <span className="inline-flex items-center gap-0.5">
+                          <MessageCircle className="h-3 w-3" />
+                          {m.commentsCount ?? "—"}
+                        </span>
+                        {m.likeCount != null && <span>♥ {m.likeCount}</span>}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {igFeedMsg && (
+          <p
+            className={`text-[11px] ${
+              igFeedMsg.startsWith("❗") ? "text-rose-400" : "text-white/45"
+            }`}
+          >
+            {igFeedMsg}
+          </p>
+        )}
+
         <a
           href={SITE_REELS_PREVIEW}
           target="_blank"
@@ -1083,21 +1330,9 @@ export function ReelsManager({
         >
           Sayt Reels preview
         </a>
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-black/40">
-          <div className="border-b border-white/10 px-2 py-1 text-[10px] uppercase tracking-wide text-white/35">
-            /instagram (iframe)
-          </div>
-          <iframe
-            title="LUXFABRIC Reels preview"
-            src={SITE_REELS_PREVIEW}
-            className="h-[320px] w-full bg-black"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
-        </div>
         <p className="text-[10px] text-white/35">
-          Real IG feed bu yerda emas — Meta iframe ni bloklaydi. Musiqa: kompyuter fayli yoki to‘g‘ri
-          audio URL.
+          Meta iframe ni bloklaydi — feed Graph API orqali. Faqat ulangan{" "}
+          {IG_HANDLE} akkaunt.
         </p>
       </aside>
       </div>
