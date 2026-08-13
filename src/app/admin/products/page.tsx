@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { formatSom } from "@/lib/utils";
 import { GENDER_LABEL } from "@/lib/product-options";
@@ -7,26 +8,39 @@ import { StockByWarehouse } from "@/components/admin/StockByWarehouse";
 import { ProductDeleteButton } from "@/components/admin/ProductDeleteButton";
 
 export default async function AdminProductsPage() {
-  const products = await prisma.product.findMany({
-    where: { status: { not: "DELETED" } },
-    include: {
-      images: true,
-      category: true,
-      variants: {
-        include: {
-          stocks: { include: { warehouse: { select: { id: true, name: true, city: true, isCentral: true } } } },
+  const [products, warehouses] = await Promise.all([
+    prisma.product.findMany({
+      where: { status: { not: "DELETED" } },
+      include: {
+        images: true,
+        category: true,
+        variants: {
+          include: {
+            stocks: {
+              include: {
+                warehouse: { select: { id: true, name: true, city: true, isCentral: true } },
+              },
+            },
+          },
         },
       },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.warehouse.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, city: true, isCentral: true },
+      orderBy: [{ isCentral: "desc" }, { city: "asc" }],
+    }),
+  ]);
 
   return (
     <div className="space-y-6 pb-16">
       <div className="flex items-end justify-between gap-3">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">Mahsulotlar</h1>
-          <p className="mt-1 text-sm text-lf-muted">Qoldiq: Jami · + bosilsa omborlar ochiladi</p>
+          <p className="mt-1 text-sm text-lf-muted">
+            Qoldiq: Jami · + bosilsa o‘lcham / ombor · «O‘zgartirish» — tahrir
+          </p>
         </div>
         <Link href="/admin/products/new" className="rounded-xl bg-lf-red px-4 py-2 text-sm font-semibold">
           + Yangi
@@ -34,7 +48,7 @@ export default async function AdminProductsPage() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-white/10">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[780px] text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase tracking-[0.12em] text-lf-muted">
             <tr>
               <th className="px-4 py-3">Mahsulot</th>
@@ -70,7 +84,20 @@ export default async function AdminProductsPage() {
               const rows = [...byWarehouse.values()]
                 .filter((w) => w.qty > 0)
                 .sort((a, b) => Number(b.isCentral) - Number(a.isCentral) || b.qty - a.qty);
-              const total = rows.reduce((s, w) => s + w.qty, 0);
+              const total = [...byWarehouse.values()].reduce((s, w) => s + w.qty, 0);
+
+              const sizes = p.variants.map((v) => {
+                const byWh: Record<string, number> = {};
+                for (const s of v.stocks) {
+                  if (s.warehouse) byWh[s.warehouse.id] = s.quantity;
+                }
+                return {
+                  variantId: v.id,
+                  color: v.color,
+                  size: v.size,
+                  byWarehouse: byWh,
+                };
+              });
 
               return (
                 <tr key={p.id} className="border-t border-white/5">
@@ -91,19 +118,34 @@ export default async function AdminProductsPage() {
                   <td className="px-4 py-3 text-lf-muted">{p.category.name}</td>
                   <td className="px-4 py-3">{formatSom(p.price)}</td>
                   <td className="px-4 py-3">
-                    <StockByWarehouse total={total} rows={rows} />
+                    <StockByWarehouse
+                      total={total}
+                      rows={rows}
+                      sizes={sizes}
+                      warehouses={warehouses}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] text-emerald-400">
                       {p.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <ProductDeleteButton
-                      productId={p.id}
-                      productName={p.name}
-                      hasMetaCatalogId={Boolean(p.metaCatalogProductId?.trim())}
-                    />
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Link
+                        href={`/admin/products/${p.id}/edit`}
+                        title="O‘zgartirish"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/15 hover:text-sky-100"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">O‘zgartirish</span>
+                      </Link>
+                      <ProductDeleteButton
+                        productId={p.id}
+                        productName={p.name}
+                        hasMetaCatalogId={Boolean(p.metaCatalogProductId?.trim())}
+                      />
+                    </div>
                   </td>
                 </tr>
               );
