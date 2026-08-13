@@ -118,15 +118,13 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Schema: `metaMediaId`, `metaPublishedAt`
 
 ### 1) Musiqa + mux
-- Admin Reels → **Musiqa kutubxonasi**: **3 ta bo‘lim** + o‘ngda **Instagram** yon panel:
-  1. **Internet kutubxonadan tanlash** (Trend / Xit RF — «Yaxshi — Reelga» / «Kutubxonaga + Reelga»)
-  2. **Kompyuterdan tanlash** (NOMI / IJROCHI / MP3 + o‘z kutubxonasi)
-  3. **URL dan** — faqat to‘g‘ridan-to‘g‘ri `.mp3/.m4a/.aac` yoki `Content-Type: audio/*` → `POST /api/admin/instagram/music/from-url` (`src/lib/import-audio-url.ts`)
+- Admin Reels → **Musiqa kutubxonasi** + o‘ngda **Instagram** yon panel:
+  1. **Kompyuterdan tanlash** (NOMI / IJROCHI / MP3 + o‘z kutubxonasi + «Yaxshi — Reelga»)
+  2. **URL dan** (ixtiyoriy) — faqat to‘g‘ridan-to‘g‘ri `.mp3/.m4a/.aac` yoki `Content-Type: audio/*` → `POST /api/admin/instagram/music/from-url` (`src/lib/import-audio-url.ts`)
 - Yon panel: `@luxfabric.shop` → yangi tabda Instagram; iframe odatda blok — izoh + sayt `/instagram` preview embed.
-- Trend: curated RF (`public/music/trends/` + `catalog.json`), API `GET /api/admin/instagram/music/trends`.
-- **Qonuniy rad:** Instagram Music Library / YouTube / Spotify / HTML sahifa scrape yoki pirate «har qanday saytdan skachat» — **yo‘q**. Meta Audio API (2026) — FAQAT Facebook Login + Sound Collection ID; to‘liq xit MP3 ochiq emas.
-- «Yaxshi — Reelga» → `musicId` (selectedMusicId) joriy yangi Reel draftiga darhol; saqlashda mux.
-- Regeneratsiya: `npm run music:trends` (`scripts/generate-trend-music.mjs`).
+- **Olib tashlangan:** Internet kutubxona / Trend·Xit RF UI + `GET .../music/trends` API (`trend-music.ts`). Eski RF fayllar `public/music/trends/` da qolishi mumkin (asosiy oqimda ko‘rinmaydi).
+- **Qonuniy rad:** Instagram Music Library / YouTube / Spotify / HTML sahifa scrape yoki pirate «har qanday saytdan skachat» — **yo‘q**.
+- «Yaxshi — Reelga» → `musicId` joriy yangi Reel draftiga darhol; saqlashda mux.
 - Saqlashda ffmpeg → `*-mux.mp4`, `audioEmbedded` (`src/lib/mux-reel-audio.ts`; `/music/...` ham).
 
 ### 2) AI matn / AI izoh
@@ -174,7 +172,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 | Workspace | `src/components/admin/InstagramWorkspace.tsx` |
 | Graph / caption / AI | `instagram-graph.ts`, `ig-caption.ts`, `shop-ai-reply.ts` |
 | Mux | `src/lib/mux-reel-audio.ts` |
-| Trend RF musiqa | `public/music/trends/`, `src/lib/trend-music.ts`, `api/.../music/trends` |
+| Musiqa import | `ReelsManager` (kompyuter + kutubxona), `api/.../music/from-url` |
 | Webhook IG | `src/app/api/instagram/route.ts` |
 | Comments API | `src/app/api/admin/instagram/comments/route.ts` |
 | Click | `src/lib/click.ts`, `src/app/api/click/*` |

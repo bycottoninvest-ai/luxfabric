@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   Copy,
   ExternalLink,
-  Flame,
   Link2,
   MessageCircle,
   Music2,
@@ -34,19 +33,6 @@ type MusicTrack = {
   artist: string;
   fileUrl: string;
   _count?: { reels: number };
-};
-type TrendTrack = {
-  id: string;
-  title: string;
-  artist: string;
-  mood: string;
-  genre: string;
-  badge: string;
-  bpm?: number;
-  durationSec?: number;
-  fileUrl: string;
-  license: string;
-  rank?: number;
 };
 type Reel = {
   id: string;
@@ -156,11 +142,6 @@ export function ReelsManager({
   const [musicTitle, setMusicTitle] = useState("");
   const [musicArtist, setMusicArtist] = useState("LUXFABRIC");
   const [musicUrl, setMusicUrl] = useState("");
-  const [trendTracks, setTrendTracks] = useState<TrendTrack[]>([]);
-  const [trendDisclaimer, setTrendDisclaimer] = useState(
-    "Instagram rasmiy xitlarini to‘g‘ridan-to‘g‘ri olish taqiqlangan; shu yerda litsenziyalangan trend uslubidagi treklar."
-  );
-  const [trendBusyId, setTrendBusyId] = useState<string | null>(null);
   const [audioUrlInput, setAudioUrlInput] = useState("");
   const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [igPanelOpen, setIgPanelOpen] = useState(true);
@@ -196,23 +177,6 @@ export function ReelsManager({
   useEffect(() => {
     setReels(initialReels);
   }, [initialReels]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/admin/instagram/music/trends")
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled || !data?.ok) return;
-        setTrendTracks(Array.isArray(data.tracks) ? data.tracks : []);
-        if (typeof data.disclaimerUz === "string" && data.disclaimerUz) {
-          setTrendDisclaimer(data.disclaimerUz);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -401,37 +365,13 @@ export function ReelsManager({
     }
   }
 
-  /** Trend/kutubxona trekini joriy yangi Reel draftiga audio sifatida biriktiradi. */
+  /** Kutubxona trekini joriy yangi Reel draftiga audio sifatida biriktiradi. */
   function attachMusicToReelDraft(trackId: string, label?: string) {
     setMusicId(trackId);
     const track = musicTracks.find((m) => m.id === trackId);
     setMsg(
       `Yaxshi ✓ · «${label || track?.title || "musiqa"}» yangi Reelga avtomatik biriktirildi`
     );
-  }
-
-  /** Trend RF trek → kutubxona + yangi Reel uchun tanlash (mux oqimi). */
-  async function attachTrendTrack(t: TrendTrack) {
-    const already = music.find(
-      (m) => m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist)
-    );
-    if (already) {
-      attachMusicToReelDraft(already.id, already.title);
-      return;
-    }
-    setTrendBusyId(t.id);
-    setMsg("");
-    try {
-      const track = await addMusicToLibrary(t.fileUrl, t.title, t.artist);
-      setMsg(
-        `Yaxshi ✓ · «${track.title}» kutubxonaga + yangi Reelga avtomatik biriktirildi`
-      );
-      router.refresh();
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Trend musiqa xatosi");
-    } finally {
-      setTrendBusyId(null);
-    }
   }
 
   /** Faqat to‘g‘ridan-to‘g‘ri audio URL → server saqlaydi → kutubxona + Reel. */
@@ -912,92 +852,17 @@ export function ReelsManager({
           <h2 className="text-lg font-semibold tracking-tight">Musiqa kutubxonasi</h2>
         </div>
         <p className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100/90">
-          Saytdan ommaviy musiqa o‘g‘irlash mumkin emas; faqat to‘g‘ridan-to‘g‘ri audio link yoki
-          kompyuter fayli. {trendDisclaimer}
+          Saytdan ommaviy musiqa o‘g‘irlash mumkin emas; faqat kompyuterdan fayl yoki to‘g‘ridan-to‘g‘ri
+          audio URL.
         </p>
 
-        {/* 1 — Internet kutubxonadan tanlash */}
-        <div className="space-y-3 rounded-2xl border border-lf-red/35 bg-gradient-to-b from-lf-red/10 to-white/5 p-4 sm:p-5">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Flame className="h-5 w-5 shrink-0 text-lf-red" />
-              <h3 className="text-base font-bold tracking-tight sm:text-lg">
-                1. Internet kutubxonadan tanlash
-              </h3>
-            </div>
-            <p className="text-xs text-white/55 sm:pl-7">
-              Trend / Xit RF katalog — tinglang → «Yaxshi — Reelga». Meta IG hit MP3 scrape
-              qilinmaydi.
-            </p>
-          </div>
-          {trendTracks.length === 0 && (
-            <p className="text-xs text-amber-300/80">Trend katalog yuklanmoqda yoki bo‘sh…</p>
-          )}
-          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-            {trendTracks.map((t) => {
-              const inLib = music.some(
-                (m) => m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist)
-              );
-              const selected =
-                inLib &&
-                musicId &&
-                music.some(
-                  (m) =>
-                    m.id === musicId &&
-                    (m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist))
-                );
-              return (
-                <div
-                  key={t.id}
-                  className={`rounded-xl border px-3 py-2.5 text-sm ${
-                    selected ? "border-lf-red/50 bg-lf-red/10" : "border-white/10 bg-black/25"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{t.title}</span>
-                        <span className="rounded bg-lf-red/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-lf-red">
-                          {t.badge || "Instagram Reels da mashhur"}
-                        </span>
-                        {typeof t.rank === "number" && (
-                          <span className="text-[10px] text-white/35">#{t.rank}</span>
-                        )}
-                      </div>
-                      <div className="text-xs text-white/45">
-                        {t.artist} · {t.mood} · {t.genre}
-                        {t.bpm ? ` · ${t.bpm} BPM` : ""}
-                      </div>
-                      <audio controls preload="none" src={t.fileUrl} className="mt-1 h-8 max-w-full" />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={Boolean(trendBusyId) || busy}
-                      onClick={() => void attachTrendTrack(t)}
-                      className="shrink-0 rounded-xl bg-lf-red px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
-                    >
-                      {trendBusyId === t.id
-                        ? "Qo‘shilmoqda…"
-                        : inLib
-                          ? selected
-                            ? "Reelda ✓"
-                            : "Yaxshi — Reelga"
-                          : "Kutubxonaga + Reelga"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 2 — Kompyuterdan tanlash */}
+        {/* Kompyuterdan tanlash + o‘z kutubxona */}
         <div className="space-y-4 rounded-2xl border border-white/15 bg-white/5 p-4 sm:p-5">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Upload className="h-5 w-5 shrink-0 text-white/80" />
               <h3 className="text-base font-bold tracking-tight sm:text-lg">
-                2. Kompyuterdan tanlash
+                Kompyuterdan tanlash
               </h3>
             </div>
             <p className="text-xs text-white/55 sm:pl-7">
@@ -1063,7 +928,7 @@ export function ReelsManager({
             </p>
             {music.length === 0 && (
               <p className="text-xs text-amber-300/80">
-                Hali musiqa yo‘q — Trend, URL yoki MP3 qo‘shing.
+                Hali musiqa yo‘q — MP3 yuklang yoki URL dan qo‘shing.
               </p>
             )}
             <div className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
@@ -1101,13 +966,13 @@ export function ReelsManager({
           </div>
         </div>
 
-        {/* 3 — URL dan (faqat to‘g‘ridan-to‘g‘ri audio) */}
+        {/* URL dan (faqat to‘g‘ridan-to‘g‘ri audio) */}
         <div className="space-y-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-4 sm:p-5">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Link2 className="h-5 w-5 shrink-0 text-emerald-300/90" />
               <h3 className="text-base font-bold tracking-tight sm:text-lg">
-                3. URL dan
+                URL dan
               </h3>
             </div>
             <p className="text-xs text-white/55 sm:pl-7">
@@ -1163,8 +1028,8 @@ export function ReelsManager({
           </button>
         </div>
         <p className="text-[11px] leading-relaxed text-white/50">
-          Instagram odatda iframe ichida ochilmaydi. Trend musiqani yonida ko‘rish uchun profilni
-          yangi oynada oching; saytimiz Reels preview pastda.
+          Instagram odatda iframe ichida ochilmaydi. Profilni yangi oynada oching; saytimiz Reels
+          preview pastda.
         </p>
         <a
           href={IG_PROFILE_URL}
@@ -1196,7 +1061,7 @@ export function ReelsManager({
           />
         </div>
         <p className="text-[10px] text-white/35">
-          Real IG feed bu yerda emas — Meta iframe ni bloklaydi. Musiqa: RF katalog / fayl / to‘g‘ri
+          Real IG feed bu yerda emas — Meta iframe ni bloklaydi. Musiqa: kompyuter fayli yoki to‘g‘ri
           audio URL.
         </p>
       </aside>
