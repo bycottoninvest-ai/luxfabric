@@ -4,9 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { formatSom } from "@/lib/utils";
 import { GENDER_LABEL } from "@/lib/product-options";
 import { StockByWarehouse } from "@/components/admin/StockByWarehouse";
+import { ProductDeleteButton } from "@/components/admin/ProductDeleteButton";
 
 export default async function AdminProductsPage() {
   const products = await prisma.product.findMany({
+    where: { status: { not: "DELETED" } },
     include: {
       images: true,
       category: true,
@@ -41,6 +43,7 @@ export default async function AdminProductsPage() {
               <th className="px-4 py-3">Narx</th>
               <th className="px-4 py-3">Qoldiq</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-right">Amal</th>
             </tr>
           </thead>
           <tbody>
@@ -94,6 +97,13 @@ export default async function AdminProductsPage() {
                     <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] text-emerald-400">
                       {p.status}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <ProductDeleteButton
+                      productId={p.id}
+                      productName={p.name}
+                      hasMetaCatalogId={Boolean(p.metaCatalogProductId?.trim())}
+                    />
                   </td>
                 </tr>
               );

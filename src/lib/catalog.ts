@@ -20,8 +20,8 @@ export async function getProducts(categorySlug?: string) {
 }
 
 export async function getProductBySlug(slug: string) {
-  return prisma.product.findUnique({
-    where: { slug },
+  return prisma.product.findFirst({
+    where: { slug, status: "ACTIVE" },
     include: {
       images: { orderBy: { sortOrder: "asc" } },
       category: true,

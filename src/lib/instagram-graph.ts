@@ -369,6 +369,118 @@ export async function commentOnInstagramMediaWithRetry(
 }
 
 /**
+ * Meta Commerce katalogdan mahsulotni o‘chirish (best-effort).
+ *
+ * Meta to‘liq «katalog o‘chirish» ni har doim bir xil qilmaydi:
+ * - Facebook Graph + Product Item id bo‘lsa: DELETE /{product-item-id}
+ * - `meta_catalog_id` setting/env + retailer/id bo‘lsa: POST /{catalog}/items_batch DELETE
+ * - Instagram Login token (graph.instagram.com) Commerce API bermaydi — skip
+ *
+ * Soft-fail: hech qachon throw qilmaydi.
+ */
+export async function tryDeleteCatalogProduct(metaCatalogProductId: string): Promise<{
+  ok: boolean;
+  skipped?: boolean;
+  error?: string;
+  note?: string;
+}> {
+  const productRef = metaCatalogProductId.trim();
+  if (!productRef) {
+    return { ok: false, skipped: true, note: "metaCatalogProductId yo‘q — IG o‘tkazib yuborildi" };
+  }
+
+  try {
+    const pageToken =
+      (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
+    if (!pageToken.trim()) {
+      return {
+        ok: false,
+        skipped: true,
+        note: "Page token yo‘q — LUXFABRIC dan o‘chirildi, IG katalogda qo‘lda o‘chiring",
+      };
+    }
+
+    let graphBase = GRAPH_FB;
+    try {
+      const creds = await getIgCredentials();
+      graphBase = creds.graphBase;
+    } catch {
+      /* token resolve bo‘lmasa ham Facebook Graph bilan urinish */
+    }
+
+    if (graphBase.includes("graph.instagram.com")) {
+      return {
+        ok: false,
+        skipped: true,
+        note:
+          "Instagram Login token Commerce katalog o‘chirishni qo‘llab-quvvatlamaydi — IG da qo‘lda o‘chiring",
+      };
+    }
+
+    // 1) To‘g‘ridan-to‘g‘ri Product Item node (id = Graph product item id)
+    const delRes = await fetch(
+      `${GRAPH_FB}/${encodeURIComponent(productRef)}?access_token=${encodeURIComponent(pageToken)}`,
+      { method: "DELETE" }
+    );
+    const delData = (await delRes.json()) as { success?: boolean; error?: { message?: string } };
+    if (delRes.ok && (delData.success === true || !delData.error)) {
+      return { ok: true, note: "Meta katalogdan o‘chirildi" };
+    }
+
+    // 2) Catalog items_batch — catalog id kerak (setting: meta_catalog_id yoki META_CATALOG_ID)
+    // Meta PRODUCT_ITEM delete identifikatori odatda `id`; ba’zi kataloglarda retailer_id.
+    const catalogId =
+      (await getSetting("meta_catalog_id")) || process.env.META_CATALOG_ID || "";
+    if (catalogId.trim()) {
+      for (const data of [{ id: productRef }, { retailer_id: productRef }] as const) {
+        const requests = JSON.stringify([{ method: "DELETE", data }]);
+        const batchParams = new URLSearchParams({
+          item_type: "PRODUCT_ITEM",
+          requests,
+          access_token: pageToken,
+        });
+        const batchRes = await fetch(
+          `${GRAPH_FB}/${encodeURIComponent(catalogId.trim())}/items_batch`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: batchParams.toString(),
+          }
+        );
+        const batchData = (await batchRes.json()) as {
+          handles?: string[];
+          error?: { message?: string };
+        };
+        if (batchRes.ok && !batchData.error) {
+          return {
+            ok: true,
+            note: "Meta katalog items_batch orqali o‘chirish yuborildi (async)",
+          };
+        }
+      }
+      return {
+        ok: false,
+        error: delData.error?.message || "Meta katalogdan o‘chirib bo‘lmadi",
+        note: "LUXFABRIC dan o‘chirildi; IG katalogda qo‘lda tekshiring",
+      };
+    }
+
+    return {
+      ok: false,
+      error: delData.error?.message || "Meta katalog delete muvaffaqiyatsiz",
+      note:
+        "LUXFABRIC dan o‘chirildi. To‘liq katalog delete uchun meta_catalog_id + Facebook Login kerak; aks holda Commerce Managerda qo‘lda o‘chiring",
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Meta katalog xatosi",
+      note: "LUXFABRIC dan o‘chirildi; IG da qo‘lda o‘chiring",
+    };
+  }
+}
+
+/**
  * Shopping product tag (faqat Facebook Login + tasdiqlangan Instagram Shop + katalog).
  * Instagram Login token bilan Meta API product tagging bermaydi — chaqirmang.
  * Soft-fail: xato tashlamaydi, { ok: false } qaytaradi.
