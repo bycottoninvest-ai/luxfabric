@@ -14,6 +14,12 @@ async function requireAdmin() {
   return readSessionToken(jar.get(ADMIN_COOKIE)?.value);
 }
 
+const imageRowSchema = z.object({
+  id: z.string().min(1).optional(),
+  url: z.string().min(1),
+  color: z.string().nullable().optional(),
+});
+
 const schema = z.object({
   id: z.string().min(1),
   name: z.string().min(2).optional(),
@@ -30,8 +36,10 @@ const schema = z.object({
     })
     .optional(),
   featured: z.boolean().optional(),
-  /** Asosiy rasm URL — mavjud bo‘lsa yangilanadi, yo‘q bo‘lsa yaratiladi */
+  /** Eski: faqat asosiy rasm URL */
   imageUrl: z.string().url().optional(),
+  /** Yangi: barcha rasmlar (tartib = sortOrder; birinchisi asosiy) */
+  images: z.array(imageRowSchema).optional(),
 });
 
 export async function POST(req: Request) {
@@ -80,7 +88,46 @@ export async function POST(req: Request) {
       select: { id: true, name: true, slug: true, status: true, price: true },
     });
 
-    if (body.imageUrl) {
+    if (body.images) {
+      if (body.images.length < 1) {
+        return NextResponse.json({ error: "Kamida 1 ta rasm qolishi kerak" }, { status: 400 });
+      }
+
+      const existingImages = await prisma.productImage.findMany({
+        where: { productId: body.id },
+        select: { id: true },
+      });
+      const keepIds = new Set(
+        body.images.map((img) => img.id).filter((id): id is string => Boolean(id))
+      );
+      const toDelete = existingImages.filter((img) => !keepIds.has(img.id)).map((img) => img.id);
+      if (toDelete.length) {
+        await prisma.productImage.deleteMany({ where: { id: { in: toDelete } } });
+      }
+
+      for (let i = 0; i < body.images.length; i++) {
+        const row = body.images[i];
+        const data = {
+          url: row.url,
+          alt: product.name,
+          color: row.color?.trim() || null,
+          sortOrder: i,
+        };
+        if (row.id && keepIds.has(row.id)) {
+          await prisma.productImage.update({
+            where: { id: row.id },
+            data,
+          });
+        } else {
+          await prisma.productImage.create({
+            data: {
+              productId: body.id,
+              ...data,
+            },
+          });
+        }
+      }
+    } else if (body.imageUrl) {
       const primary = await prisma.productImage.findFirst({
         where: { productId: body.id },
         orderBy: { sortOrder: "asc" },
@@ -102,7 +149,13 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, product });
+    const images = await prisma.productImage.findMany({
+      where: { productId: body.id },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, url: true, color: true, sortOrder: true },
+    });
+
+    return NextResponse.json({ ok: true, product, images });
   } catch (err) {
     if (err instanceof z.ZodError) {
       const first = err.issues[0];

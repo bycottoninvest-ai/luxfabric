@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Upload } from "lucide-react";
-import { PRODUCT_CATEGORIES, GENDER_LABEL } from "@/lib/product-options";
+import { Star, Trash2, Upload } from "lucide-react";
+import { PRODUCT_CATEGORIES, GENDER_LABEL, PRODUCT_COLORS } from "@/lib/product-options";
 import { uploadAdminMedia } from "@/lib/client-upload";
 
 type SizeLine = {
@@ -23,6 +23,13 @@ type WarehouseOpt = {
   isCentral: boolean;
 };
 
+type ImageRow = {
+  id?: string;
+  url: string;
+  color: string;
+  sortOrder: number;
+};
+
 type ProductEdit = {
   id: string;
   name: string;
@@ -36,7 +43,7 @@ type ProductEdit = {
   featured: boolean;
   gender: string;
   categorySlug: string;
-  imageUrl: string | null;
+  images: ImageRow[];
   sizes: SizeLine[];
   warehouses: WarehouseOpt[];
 };
@@ -61,8 +68,16 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
     for (const s of product.sizes) m[s.variantId] = String(s.quantity);
     return m;
   });
-  const [imageUrl, setImageUrl] = useState(product.imageUrl);
+  const [images, setImages] = useState<ImageRow[]>(() =>
+    product.images.map((img, i) => ({
+      id: img.id,
+      url: img.url,
+      color: img.color || PRODUCT_COLORS[0].color,
+      sortOrder: img.sortOrder ?? i,
+    }))
+  );
   const [uploading, setUploading] = useState(false);
+  const [replacingIdx, setReplacingIdx] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [stockBusy, setStockBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -78,6 +93,11 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
     });
   }, [product.sizes]);
 
+  const colorNames = useMemo(
+    () => [...new Set(images.map((i) => i.color).filter(Boolean))],
+    [images]
+  );
+
   function loadDraftsForWarehouse(whId: string) {
     const m: Record<string, string> = {};
     for (const s of product.sizes) {
@@ -88,12 +108,41 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
 
   const multiColor = orderedSizes.some((x) => x.color !== orderedSizes[0]?.color);
 
+  function setImageColor(idx: number, color: string) {
+    setImages((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], color };
+      return next;
+    });
+  }
+
+  function setPrimary(idx: number) {
+    if (idx <= 0) return;
+    setImages((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(idx, 1);
+      next.unshift(item);
+      return next.map((img, i) => ({ ...img, sortOrder: i }));
+    });
+    setMsg("Asosiy rasm belgilandi — «Ma’lumotni saqlash» ni bosing");
+  }
+
+  function removeImage(idx: number) {
+    if (images.length <= 1) {
+      setError("Kamida 1 ta rasm qolishi kerak");
+      return;
+    }
+    setImages((prev) => prev.filter((_, i) => i !== idx).map((img, i) => ({ ...img, sortOrder: i })));
+    setMsg("Rasm o‘chirildi — «Ma’lumotni saqlash» ni bosing");
+  }
+
   async function saveProduct(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
     setMsg("");
     try {
+      if (images.length < 1) throw new Error("Kamida 1 ta rasm qo‘shing");
       const res = await fetch("/api/admin/products/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -109,11 +158,25 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
           status,
           categorySlug,
           featured,
-          ...(imageUrl && imageUrl !== product.imageUrl ? { imageUrl } : {}),
+          images: images.map((img) => ({
+            ...(img.id ? { id: img.id } : {}),
+            url: img.url,
+            color: img.color || null,
+          })),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Saqlash xatosi");
+      if (Array.isArray(data.images)) {
+        setImages(
+          data.images.map((img: { id: string; url: string; color: string | null; sortOrder: number }) => ({
+            id: img.id,
+            url: img.url,
+            color: img.color || PRODUCT_COLORS[0].color,
+            sortOrder: img.sortOrder,
+          }))
+        );
+      }
       setMsg("Mahsulot saqlandi");
       router.refresh();
     } catch (err) {
@@ -123,18 +186,46 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
     }
   }
 
-  async function uploadImage(file: File) {
+  async function addImages(files: FileList | null) {
+    if (!files?.length) return;
     setUploading(true);
     setError("");
     setMsg("");
     try {
-      const url = await uploadAdminMedia(file, "image", "products");
-      setImageUrl(url);
-      setMsg("Rasm yuklandi — «Ma’lumotni saqlash» ni bosing");
+      const added: ImageRow[] = [];
+      for (const file of Array.from(files)) {
+        const url = await uploadAdminMedia(file, "image", "products");
+        added.push({
+          url,
+          color: PRODUCT_COLORS[0].color,
+          sortOrder: images.length + added.length,
+        });
+      }
+      setImages((prev) => [...prev, ...added].map((img, i) => ({ ...img, sortOrder: i })));
+      setMsg(`${added.length} ta rasm qo‘shildi — «Ma’lumotni saqlash» ni bosing`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Rasm yuklash xatosi");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function replaceImage(idx: number, file: File) {
+    setReplacingIdx(idx);
+    setError("");
+    setMsg("");
+    try {
+      const url = await uploadAdminMedia(file, "image", "products");
+      setImages((prev) => {
+        const next = [...prev];
+        next[idx] = { ...next[idx], url };
+        return next;
+      });
+      setMsg("Rasm almashtirildi — «Ma’lumotni saqlash» ni bosing");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rasm yuklash xatosi");
+    } finally {
+      setReplacingIdx(null);
     }
   }
 
@@ -220,31 +311,143 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
       </div>
 
       <form onSubmit={saveProduct} className="space-y-4 rounded-2xl border border-white/10 bg-lf-card p-5">
-        <h2 className="font-semibold">Asosiy ma’lumot</h2>
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="relative h-28 w-24 overflow-hidden rounded-xl border border-white/10 bg-lf-surface">
-            {imageUrl ? (
-              <Image src={imageUrl} alt={name || product.name} fill className="object-cover" sizes="96px" />
-            ) : (
-              <div className="flex h-full items-center justify-center text-[10px] text-lf-muted">Rasm yo‘q</div>
-            )}
-          </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Rasmlar</h2>
+          <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-xs font-medium tabular-nums text-lf-muted">
+            {images.length} ta rasm
+          </span>
+        </div>
+        <p className="text-xs text-lf-muted">
+          Barcha sotuvdagi rasmlar. Birinchisi asosiy. Har bir rasmga rang biriktirishingiz mumkin
+          (yaratish oqimidagi kabi).
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-lf-red px-3 py-2 text-sm font-semibold">
             <Upload className="h-4 w-4" />
-            {uploading ? "Yuklanmoqda…" : "Rasm almashtirish"}
+            {uploading ? "Yuklanmoqda…" : "Rasm qo‘shish"}
             <input
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              disabled={uploading}
+              disabled={uploading || replacingIdx !== null}
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void uploadImage(f);
+                void addImages(e.target.files);
                 e.target.value = "";
               }}
             />
           </label>
         </div>
+
+        {images.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-white/15 px-3 py-6 text-center text-sm text-lf-muted">
+            Hali rasm yo‘q
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {images.map((img, idx) => (
+              <div
+                key={img.id || `${img.url}-${idx}`}
+                className={`overflow-hidden rounded-xl border bg-black/25 ${
+                  idx === 0 ? "border-lf-red/60" : "border-white/10"
+                }`}
+              >
+                <div className="relative aspect-[3/4] w-full bg-lf-surface">
+                  <Image
+                    src={img.url}
+                    alt={name || product.name}
+                    fill
+                    className="object-cover"
+                    sizes="160px"
+                    unoptimized={img.url.startsWith("/")}
+                  />
+                  {idx === 0 && (
+                    <span className="absolute left-1.5 top-1.5 rounded bg-lf-red px-1.5 py-0.5 text-[10px] font-semibold">
+                      Asosiy
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    className="absolute right-1.5 top-1.5 rounded-md bg-black/75 p-1 hover:bg-black/90"
+                    title="O‘chirish"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                  {img.color && (
+                    <div className="absolute bottom-1.5 left-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-medium">
+                      {img.color}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2 p-2">
+                  <div className="flex flex-wrap gap-1">
+                    {idx !== 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPrimary(idx)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] hover:bg-white/10"
+                      >
+                        <Star className="h-3 w-3" />
+                        Asosiy qilish
+                      </button>
+                    )}
+                    <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] hover:bg-white/10">
+                      <Upload className="h-3 w-3" />
+                      {replacingIdx === idx ? "…" : "Almashtirish"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploading || replacingIdx !== null}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void replaceImage(idx, f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[9px] uppercase tracking-[0.12em] text-white/40">
+                      Rang
+                    </div>
+                    <div className="grid grid-cols-5 gap-0.5">
+                      {PRODUCT_COLORS.map((c) => {
+                        const active = img.color === c.color;
+                        return (
+                          <button
+                            key={c.color}
+                            type="button"
+                            title={c.color}
+                            onClick={() => setImageColor(idx, c.color)}
+                            className={`flex items-center justify-center rounded border p-0.5 ${
+                              active
+                                ? "border-lf-red bg-lf-red/20"
+                                : "border-white/10 hover:border-white/30"
+                            }`}
+                          >
+                            <span
+                              className="h-4 w-4 rounded-full border border-white/25"
+                              style={{ backgroundColor: c.colorHex }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {colorNames.length > 0 && (
+          <p className="text-xs text-lf-muted">Model ranglari: {colorNames.join(", ")}</p>
+        )}
+
+        <h2 className="pt-2 font-semibold">Asosiy ma’lumot</h2>
         <label className="block space-y-1.5">
           <span className="text-xs uppercase tracking-[0.12em] text-lf-muted">Nomi</span>
           <input

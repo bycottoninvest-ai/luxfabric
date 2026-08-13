@@ -13,7 +13,7 @@ export default async function AdminProductEditPage({
     prisma.product.findFirst({
       where: { id, status: { not: "DELETED" } },
       include: {
-        images: { orderBy: { sortOrder: "asc" }, take: 1 },
+        images: { orderBy: { sortOrder: "asc" } },
         category: true,
         variants: {
           include: {
@@ -60,7 +60,12 @@ export default async function AdminProductEditPage({
         featured: product.featured,
         gender: product.gender,
         categorySlug: product.category.slug,
-        imageUrl: product.images[0]?.url ?? null,
+        images: product.images.map((img) => ({
+          id: img.id,
+          url: img.url,
+          color: img.color ?? "",
+          sortOrder: img.sortOrder,
+        })),
         sizes,
         warehouses,
       }}
