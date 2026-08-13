@@ -38,9 +38,11 @@ export async function deleteProduct(id: string): Promise<DeleteProductResult> {
     },
   });
 
-  if (!product || product.status === "DELETED") {
+  if (!product) {
     return { ok: true, mode: "soft", alreadyGone: true };
   }
+
+  const alreadyDeleted = product.status === "DELETED";
 
   const catalogId = product.metaCatalogProductId?.trim() || "";
   let ig: DeleteProductResult["ig"];
@@ -59,7 +61,9 @@ export async function deleteProduct(id: string): Promise<DeleteProductResult> {
       attempted: false,
       ok: false,
       skipped: true,
-      note: "Instagram katalog ID yo‘q — faqat tizimdan o‘chirildi",
+      note: alreadyDeleted
+        ? "Allaqachon arxiv — Instagram katalog ID yo‘q"
+        : "Instagram katalog ID yo‘q — faqat tizimdan o‘chirildi",
     };
   }
 
@@ -94,7 +98,18 @@ export async function deleteProduct(id: string): Promise<DeleteProductResult> {
 
   if (canHard) {
     await prisma.product.delete({ where: { id } });
-    return { ok: true, mode: "hard", ig };
+    return { ok: true, mode: "hard", ig, alreadyGone: alreadyDeleted };
+  }
+
+  if (alreadyDeleted) {
+    // Soft qoladi (buyurtma/skan bor) — meta tozalash
+    if (catalogId) {
+      await prisma.product.update({
+        where: { id },
+        data: { featured: false, metaCatalogProductId: null },
+      });
+    }
+    return { ok: true, mode: "soft", alreadyGone: true, ig };
   }
 
   // Soft-delete: buyurtma tarixi saqlanadi
