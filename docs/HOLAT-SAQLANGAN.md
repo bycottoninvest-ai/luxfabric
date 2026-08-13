@@ -118,7 +118,9 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Schema: `metaMediaId`, `metaPublishedAt`
 
 ### 1) Musiqa + mux
-- Admin Reels → **Musiqa kutubxonasi**: tablar **Xit / Trend | Kutubxona | Kompyuterdan**.
+- Admin Reels → **Musiqa kutubxonasi**: bir sahifada **2 ta katta bo‘lim**:
+  1. **Internet kutubxonadan tanlash** (Trend / Xit RF katalog — tinglash + tanlash)
+  2. **Kompyuterdan tanlash** (NOMI / IJROCHI / MP3 yuklash + o‘z kutubxonasi)
 - Trend: curated RF (`public/music/trends/` + `catalog.json`), API `GET /api/admin/instagram/music/trends`.
 - **Qonuniy:** Instagram/Meta hit MP3 scrape/pirat saqlash yo‘q. Meta Audio API (2026) — faqat Facebook Login + Sound Collection ID biriktirish; to‘liq xit katalogi / MP3 ochiq emas.
 - Trend tanlash → kutubxonaga + reel `musicId` → mux. Kompyuterdan yuklash saqlangan.

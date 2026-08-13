@@ -43,7 +43,6 @@ type TrendTrack = {
   license: string;
   rank?: number;
 };
-type MusicLibTab = "trend" | "library" | "upload";
 type Reel = {
   id: string;
   title: string;
@@ -152,7 +151,6 @@ export function ReelsManager({
   const [musicTitle, setMusicTitle] = useState("");
   const [musicArtist, setMusicArtist] = useState("LUXFABRIC");
   const [musicUrl, setMusicUrl] = useState("");
-  const [musicLibTab, setMusicLibTab] = useState<MusicLibTab>("trend");
   const [trendTracks, setTrendTracks] = useState<TrendTrack[]>([]);
   const [trendDisclaimer, setTrendDisclaimer] = useState(
     "Instagram rasmiy xitlarini to‘g‘ridan-to‘g‘ri olish taqiqlangan; shu yerda litsenziyalangan trend uslubidagi treklar."
@@ -402,7 +400,6 @@ export function ReelsManager({
     );
     if (already) {
       setMusicId(already.id);
-      setMusicLibTab("library");
       setMsg(`Trend musiqa tanlandi ✓ (${already.title}) — Reelga birikadi`);
       return;
     }
@@ -410,7 +407,6 @@ export function ReelsManager({
     setMsg("");
     try {
       const track = await addMusicToLibrary(t.fileUrl, t.title, t.artist);
-      setMusicLibTab("library");
       setMsg(
         `Trend: «${track.title}» kutubxonaga qo‘shildi ✓ — yangi Reelga avtomatik tanlandi`
       );
@@ -855,209 +851,202 @@ export function ReelsManager({
         </p>
       </div>
 
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Music2 className="h-4 w-4 text-lf-red" />
-          <h2 className="font-semibold">Musiqa kutubxonasi</h2>
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 px-0.5">
+          <Music2 className="h-5 w-5 text-lf-red" />
+          <h2 className="text-lg font-semibold tracking-tight">Musiqa kutubxonasi</h2>
         </div>
         <p className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100/90">
           {trendDisclaimer}
         </p>
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { id: "trend" as const, label: "Xit / Trend", icon: Flame },
-              { id: "library" as const, label: "Kutubxona", icon: Music2 },
-              { id: "upload" as const, label: "Kompyuterdan", icon: Upload },
-            ] as const
-          ).map((tab) => {
-            const Icon = tab.icon;
-            const active = musicLibTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setMusicLibTab(tab.id)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                  active
-                    ? "bg-lf-red text-white"
-                    : "border border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
+
+        {/* 1 — Internet kutubxonadan tanlash */}
+        <div className="space-y-3 rounded-2xl border border-lf-red/35 bg-gradient-to-b from-lf-red/10 to-white/5 p-4 sm:p-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Flame className="h-5 w-5 shrink-0 text-lf-red" />
+              <h3 className="text-base font-bold tracking-tight sm:text-lg">
+                1. Internet kutubxonadan tanlash
+              </h3>
+            </div>
+            <p className="text-xs text-white/55 sm:pl-7">
+              Trend / Xit RF katalog — tinglang va bir zumda Reelga biriktiring. Meta IG hit MP3
+              scrape qilinmaydi.
+            </p>
+          </div>
+          {trendTracks.length === 0 && (
+            <p className="text-xs text-amber-300/80">Trend katalog yuklanmoqda yoki bo‘sh…</p>
+          )}
+          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+            {trendTracks.map((t) => {
+              const inLib = music.some(
+                (m) => m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist)
+              );
+              const selected =
+                inLib &&
+                musicId &&
+                music.some(
+                  (m) =>
+                    m.id === musicId &&
+                    (m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist))
+                );
+              return (
+                <div
+                  key={t.id}
+                  className={`rounded-xl border px-3 py-2.5 text-sm ${
+                    selected ? "border-lf-red/50 bg-lf-red/10" : "border-white/10 bg-black/25"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{t.title}</span>
+                        <span className="rounded bg-lf-red/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-lf-red">
+                          {t.badge || "Instagram Reels da mashhur"}
+                        </span>
+                        {typeof t.rank === "number" && (
+                          <span className="text-[10px] text-white/35">#{t.rank}</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-white/45">
+                        {t.artist} · {t.mood} · {t.genre}
+                        {t.bpm ? ` · ${t.bpm} BPM` : ""}
+                      </div>
+                      <audio controls preload="none" src={t.fileUrl} className="mt-1 h-8 max-w-full" />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={Boolean(trendBusyId) || busy}
+                      onClick={() => void attachTrendTrack(t)}
+                      className="shrink-0 rounded-xl bg-lf-red px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                    >
+                      {trendBusyId === t.id
+                        ? "Qo‘shilmoqda…"
+                        : inLib
+                          ? selected
+                            ? "Tanlangan ✓"
+                            : "Reelga tanlash"
+                          : "Kutubxonaga + Reelga"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {musicLibTab === "trend" && (
-          <div className="space-y-2">
-            <p className="text-xs text-white/50">
-              Trend uslubidagi litsenziyalangan (RF) treklar — tinglang va bir zumda Reelga biriktiring.
-              Meta IG hit MP3 lari scrape qilinmaydi.
-            </p>
-            {trendTracks.length === 0 && (
-              <p className="text-xs text-amber-300/80">Trend katalog yuklanmoqda yoki bo‘sh…</p>
-            )}
-            <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-              {trendTracks.map((t) => {
-                const inLib = music.some(
-                  (m) => m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist)
-                );
-                const selected =
-                  inLib &&
-                  musicId &&
-                  music.some(
-                    (m) =>
-                      m.id === musicId &&
-                      (m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist))
-                  );
-                return (
-                  <div
-                    key={t.id}
-                    className={`rounded-xl border px-3 py-2.5 text-sm ${
-                      selected ? "border-lf-red/50 bg-lf-red/10" : "border-white/5 bg-black/20"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{t.title}</span>
-                          <span className="rounded bg-lf-red/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-lf-red">
-                            {t.badge || "Instagram Reels da mashhur"}
-                          </span>
-                          {typeof t.rank === "number" && (
-                            <span className="text-[10px] text-white/35">#{t.rank}</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-white/45">
-                          {t.artist} · {t.mood} · {t.genre}
-                          {t.bpm ? ` · ${t.bpm} BPM` : ""}
-                        </div>
-                        <audio controls preload="none" src={t.fileUrl} className="mt-1 h-8 max-w-full" />
-                      </div>
-                      <button
-                        type="button"
-                        disabled={Boolean(trendBusyId) || busy}
-                        onClick={() => void attachTrendTrack(t)}
-                        className="shrink-0 rounded-xl bg-lf-red px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
-                      >
-                        {trendBusyId === t.id
-                          ? "Qo‘shilmoqda…"
-                          : inLib
-                            ? selected
-                              ? "Tanlangan ✓"
-                              : "Reelga tanlash"
-                            : "Kutubxonaga + Reelga"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+        {/* 2 — Kompyuterdan tanlash */}
+        <div className="space-y-4 rounded-2xl border border-white/15 bg-white/5 p-4 sm:p-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Upload className="h-5 w-5 shrink-0 text-white/80" />
+              <h3 className="text-base font-bold tracking-tight sm:text-lg">
+                2. Kompyuterdan tanlash
+              </h3>
             </div>
+            <p className="text-xs text-white/55 sm:pl-7">
+              O‘z MP3/M4A faylingiz — kutubxonaga tushadi va Reel uchun tanlanadi.
+            </p>
           </div>
-        )}
 
-        {musicLibTab === "library" && (
-          <div className="space-y-2">
-            <p className="text-xs text-white/50">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-xs uppercase tracking-[0.12em] text-white/45">Nomi</span>
+              <input
+                value={musicTitle}
+                onChange={(e) => setMusicTitle(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                placeholder="Track nomi"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs uppercase tracking-[0.12em] text-white/45">Ijrochi</span>
+              <input
+                value={musicArtist}
+                onChange={(e) => setMusicArtist(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-white/25 bg-black/30 px-4 py-2.5 text-sm font-medium">
+              <Upload className="h-4 w-4" />
+              Kompyuterdan musiqa
+              <input
+                type="file"
+                accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg"
+                className="hidden"
+                onChange={(e) => onUploadMusic(e.target.files?.[0] || null)}
+              />
+            </label>
+            {musicUrl && (
+              <span className="max-w-[220px] truncate text-xs text-amber-300/90">
+                Fayl tayyor, kutubxonaga yozilmoqda… {musicUrl}
+              </span>
+            )}
+            {musicUrl && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={saveMusic}
+                className="rounded-xl bg-lf-red px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Kutubxonaga qo‘shish
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-white/10 pt-4">
+            <div className="flex items-center gap-2">
+              <Music2 className="h-4 w-4 text-white/50" />
+              <h4 className="text-sm font-semibold text-white/85">O‘z kutubxonangiz</h4>
+              <span className="text-[11px] text-white/40">({music.length})</span>
+            </div>
+            <p className="text-xs text-white/45">
               Saqlangan treklar — yangi Reelda avtomatik tanlanadi (ffmpeg mux).
             </p>
             {music.length === 0 && (
               <p className="text-xs text-amber-300/80">
-                Hali musiqa yo‘q — «Xit / Trend» yoki «Kompyuterdan» dan qo‘shing.
+                Hali musiqa yo‘q — yuqoridan Trend tanlang yoki MP3 yuklang.
               </p>
             )}
-            {music.map((m) => (
-              <div
-                key={m.id}
-                className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm ${
-                  musicId === m.id ? "border-lf-red/40 bg-lf-red/10" : "border-white/5"
-                }`}
-              >
-                <div>
-                  <div className="font-medium">{m.title}</div>
-                  <div className="text-xs text-white/45">{m.artist}</div>
-                  <audio controls src={m.fileUrl} className="mt-1 h-8 max-w-full" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMusicId(m.id);
-                      setMsg(`Musiqa tanlandi ✓ · ${m.title}`);
-                    }}
-                    className="rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-semibold"
-                  >
-                    {musicId === m.id ? "Tanlangan" : "Tanlash"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeMusic(m.id)}
-                    className="rounded-lg bg-white/10 p-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {musicLibTab === "upload" && (
-          <div className="space-y-3">
-            <p className="text-xs text-white/50">
-              O‘z MP3/M4A faylingiz — bir zumda kutubxonaga tushadi va Reel uchun tanlanadi.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block space-y-1.5">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Nomi</span>
-                <input
-                  value={musicTitle}
-                  onChange={(e) => setMusicTitle(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                  placeholder="Track nomi"
-                />
-              </label>
-              <label className="block space-y-1.5">
-                <span className="text-xs uppercase tracking-[0.12em] text-white/45">Ijrochi</span>
-                <input
-                  value={musicArtist}
-                  onChange={(e) => setMusicArtist(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-                />
-              </label>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-white/20 bg-black/30 px-4 py-2.5 text-sm">
-                <Upload className="h-4 w-4" />
-                Kompyuterdan musiqa
-                <input
-                  type="file"
-                  accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg"
-                  className="hidden"
-                  onChange={(e) => onUploadMusic(e.target.files?.[0] || null)}
-                />
-              </label>
-              {musicUrl && (
-                <span className="max-w-[220px] truncate text-xs text-amber-300/90">
-                  Fayl tayyor, kutubxonaga yozilmoqda… {musicUrl}
-                </span>
-              )}
-              {musicUrl && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={saveMusic}
-                  className="rounded-xl bg-lf-red px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+            <div className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
+              {music.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm ${
+                    musicId === m.id ? "border-lf-red/40 bg-lf-red/10" : "border-white/5 bg-black/20"
+                  }`}
                 >
-                  Kutubxonaga qo‘shish
-                </button>
-              )}
+                  <div>
+                    <div className="font-medium">{m.title}</div>
+                    <div className="text-xs text-white/45">{m.artist}</div>
+                    <audio controls src={m.fileUrl} className="mt-1 h-8 max-w-full" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMusicId(m.id);
+                        setMsg(`Musiqa tanlandi ✓ · ${m.title}`);
+                      }}
+                      className="rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-semibold"
+                    >
+                      {musicId === m.id ? "Tanlangan" : "Tanlash"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeMusic(m.id)}
+                      className="rounded-lg bg-white/10 p-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        )}
+        </div>
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
