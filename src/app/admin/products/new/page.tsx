@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Trash2, Upload } from "lucide-react";
+import { Sparkles, Trash2, Upload } from "lucide-react";
 import {
   GENDERS,
   PRODUCT_COLORS,
+  PRODUCT_CATEGORIES,
   SIZES_BY_GENDER,
   type GenderKey,
 } from "@/lib/product-options";
@@ -18,6 +19,8 @@ export default function NewProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiHint, setAiHint] = useState("");
   const [error, setError] = useState("");
   const [gender, setGender] = useState<GenderKey>("WOMEN");
   const [name, setName] = useState("");
@@ -32,6 +35,7 @@ export default function NewProductPage() {
   const [stockQty, setStockQty] = useState("40");
   const allSizes = SIZES_BY_GENDER[gender];
   const [sizes, setSizes] = useState<string[]>([...SIZES_BY_GENDER.WOMEN]);
+  const aiAutoDone = useRef(false);
 
   /** Mahsulot ranglari — rasmlarga biriktirilganlardan */
   const colors = useMemo(() => {
@@ -68,12 +72,70 @@ export default function NewProductPage() {
     });
   }
 
+  async function runAiDescribe(imageSrc: string, opts?: { force?: boolean }) {
+    if (!imageSrc) return;
+    if (aiLoading) return;
+    setAiLoading(true);
+    setAiHint("");
+    setError("");
+    try {
+      const res = await fetch("/api/admin/products/ai-describe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: imageSrc,
+          gender,
+          nameHint: name || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "AI xatosi");
+
+      const confidence = typeof data.confidence === "number" ? data.confidence : 0;
+      if (data.category && (opts?.force || confidence >= 0.55 || !categorySlug)) {
+        setCategorySlug(data.category);
+      }
+      if (data.name && (opts?.force || !name.trim())) {
+        setName(String(data.name));
+      }
+      if (data.description && (opts?.force || !description.trim())) {
+        setDescription(String(data.description));
+      }
+      if (data.material && (opts?.force || fabric === "100% premium paxta")) {
+        setFabric(String(data.material));
+      }
+      if (data.care && (opts?.force || care === "30°C da yuvish, dazmol o‘rtacha")) {
+        setCare(String(data.care));
+      }
+
+      const srcLabel =
+        data.source === "openai"
+          ? "ChatGPT"
+          : data.source === "template-fallback"
+            ? "shablon (AI javob bermadi)"
+            : "shablon";
+      setAiHint(
+        `AI to‘ldirdi (${srcLabel})${
+          confidence ? ` · ishonch ${Math.round(confidence * 100)}%` : ""
+        }${data.hint ? ` — ${data.hint}` : ""}`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI xatosi");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   async function uploadFile(file: File) {
     setUploading(true);
     setError("");
     try {
       const url = await uploadAdminMedia(file, "image", "products");
       setImages((prev) => [...prev, { url, color: PRODUCT_COLORS[0].color }]);
+      if (!aiAutoDone.current) {
+        aiAutoDone.current = true;
+        void runAiDescribe(url);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yuklash xatosi");
     } finally {
@@ -186,13 +248,11 @@ export default function NewProductPage() {
               onChange={(e) => setCategorySlug(e.target.value)}
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
             >
-              <option value="futbolkalar">Futbolkalar</option>
-              <option value="polo">Polo</option>
-              <option value="hoodie">Hoodie</option>
-              <option value="shortlar">Shortlar</option>
-              <option value="shim">Shim</option>
-              <option value="kostyum">Kostyum</option>
-              <option value="aksessuar">Aksessuar</option>
+              {PRODUCT_CATEGORIES.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
+                </option>
+              ))}
             </select>
           </label>
           <label className="block space-y-1.5">
@@ -230,7 +290,8 @@ export default function NewProductPage() {
         <section className="space-y-3 rounded-2xl border border-white/10 bg-lf-card p-5">
           <h2 className="font-semibold">3. Rasmlar + rang</h2>
           <p className="text-xs text-lf-muted">
-            Rasm yuklang — o‘ngdagi kichik ranglardan tanlang. Har bir rasm = bitta rang.
+            Rasm yuklang — o‘ngdagi kichik ranglardan tanlang. Har bir rasm = bitta rang. Birinchi rasm
+            yuklanganda AI avtomatik kategoriya/tavsif to‘ldirishi mumkin.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -249,7 +310,18 @@ export default function NewProductPage() {
                 }}
               />
             </label>
+            <button
+              type="button"
+              disabled={aiLoading || images.length === 0}
+              onClick={() => void runAiDescribe(images[0]?.url || "", { force: true })}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              {aiLoading ? "AI o‘qimoqda..." : "AI: rasmdan to‘ldirish"}
+            </button>
           </div>
+
+          {aiHint && <p className="text-xs text-emerald-300/90">{aiHint}</p>}
 
           <div className="flex gap-2">
             <input
@@ -262,8 +334,13 @@ export default function NewProductPage() {
               type="button"
               onClick={() => {
                 if (!imageUrl.trim()) return;
-                setImages((p) => [...p, { url: imageUrl.trim(), color: PRODUCT_COLORS[0].color }]);
+                const url = imageUrl.trim();
+                setImages((p) => [...p, { url, color: PRODUCT_COLORS[0].color }]);
                 setImageUrl("");
+                if (!aiAutoDone.current) {
+                  aiAutoDone.current = true;
+                  void runAiDescribe(url);
+                }
               }}
               className="rounded-xl border border-white/10 px-3 text-sm"
             >
@@ -401,7 +478,7 @@ export default function NewProductPage() {
 
         <button
           type="submit"
-          disabled={loading || uploading}
+          disabled={loading || uploading || aiLoading}
           className="w-full rounded-xl bg-lf-red py-3.5 text-sm font-semibold disabled:opacity-60"
         >
           {loading ? "Saqlanmoqda..." : "Saqlash va barcha kanallarga tarqatish"}

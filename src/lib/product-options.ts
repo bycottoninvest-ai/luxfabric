@@ -1,5 +1,13 @@
 export type GenderKey = "WOMEN" | "MEN" | "KIDS";
 
+/** Kategoriyalar — `product-categories.ts` (forma + API). */
+export {
+  PRODUCT_CATEGORIES,
+  PRODUCT_CATEGORY_SLUGS,
+  categoryNameForSlug,
+  isProductCategorySlug,
+} from "@/lib/product-categories";
+
 export const GENDERS: { key: GenderKey; label: string; desc: string }[] = [
   { key: "WOMEN", label: "Ayollar", desc: "Ayollar kolleksiyasi" },
   { key: "MEN", label: "Erkaklar", desc: "Erkaklar kolleksiyasi" },

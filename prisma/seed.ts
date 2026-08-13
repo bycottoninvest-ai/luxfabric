@@ -118,14 +118,17 @@ async function main() {
     warehouses.push(wh);
   }
 
-  const cats = await Promise.all(
-    [
-      { name: "Futbolkalar", slug: "futbolkalar" },
-      { name: "Polo", slug: "polo" },
-      { name: "Hoodie", slug: "hoodie" },
-      { name: "Shortlar", slug: "shortlar" },
-    ].map((c) => prisma.category.create({ data: c }))
+  const { PRODUCT_CATEGORIES } = await import("../src/lib/product-categories");
+  const createdCats = await Promise.all(
+    PRODUCT_CATEGORIES.map((c) => prisma.category.create({ data: { name: c.name, slug: c.slug } }))
   );
+  const bySlug = Object.fromEntries(createdCats.map((c) => [c.slug, c]));
+  const cats = [
+    bySlug.futbolkalar,
+    bySlug.polo,
+    bySlug.hoodie,
+    bySlug.shortlar,
+  ];
 
   const productsData = [
     {

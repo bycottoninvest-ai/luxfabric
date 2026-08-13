@@ -3,12 +3,21 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sizesForGender } from "@/lib/product-options";
+import {
+  PRODUCT_CATEGORY_SLUGS,
+  categoryNameForSlug,
+  isProductCategorySlug,
+} from "@/lib/product-categories";
 
 const schema = z.object({
   name: z.string().min(2),
   price: z.number().int().positive(),
   oldPrice: z.number().int().positive().optional().nullable(),
-  categorySlug: z.string(),
+  categorySlug: z
+    .string()
+    .refine((s) => isProductCategorySlug(s), {
+      message: `Noto‘g‘ri kategoriya. Ruxsat: ${PRODUCT_CATEGORY_SLUGS.slice(0, 8).join(", ")}…`,
+    }),
   gender: z.enum(["WOMEN", "MEN", "KIDS"]),
   description: z.string().min(5),
   fabric: z.string().min(2),
@@ -64,13 +73,19 @@ function formatError(err: unknown): string {
 export async function POST(req: Request) {
   try {
     const body = schema.parse(await req.json());
+    const categoryName = categoryNameForSlug(body.categorySlug);
     let category = await prisma.category.findUnique({ where: { slug: body.categorySlug } });
     if (!category) {
       category = await prisma.category.create({
         data: {
-          name: body.categorySlug,
+          name: categoryName,
           slug: body.categorySlug,
         },
+      });
+    } else if (category.name !== categoryName) {
+      category = await prisma.category.update({
+        where: { id: category.id },
+        data: { name: categoryName },
       });
     }
 
