@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { generateOrderNumber, formatSom, isValidUzPhone, maskUzPhone } from "@/lib/utils";
 import { pickWarehouseForCity } from "@/lib/warehouse";
 import { notifyOrderCreated, notifyDirector } from "@/lib/notify";
-import { buildClickPayUrlForOrder } from "@/lib/click";
+import { buildClickPayUrlForOrder, getClickConfig, isClickConfigured } from "@/lib/click";
+import { buildPaymeCheckoutUrlForOrder } from "@/lib/payme";
 import {
   formatBranchLabel,
   getUzCourierByCode,
@@ -191,14 +192,16 @@ export async function POST(req: Request) {
     });
 
     const orderNumber = generateOrderNumber();
-    // Click/Payme: PAID faqat webhook (Click) yoki keyingi integratsiyada; COD — yetkazishgacha
-    const paymentStatus =
-      body.paymentMethod === "COD" ||
-      body.paymentMethod === "CLICK" ||
-      body.paymentMethod === "PAYME"
-        ? "PENDING"
-        : "PAID";
-    const initialStatus = paymentStatus === "PAID" ? "PAID" : "NEW";
+    // Online to‘lovlar: PAID faqat Click/Payme webhook; CARD → Click ga yo‘naltiriladi; COD — PENDING
+    // Fake PAID yo‘q (Visa to‘g‘ridan-to‘g‘ri yo‘q)
+    let effectiveMethod = body.paymentMethod;
+    if (effectiveMethod === "CARD") {
+      const clickCfg = await getClickConfig();
+      if (isClickConfigured(clickCfg)) effectiveMethod = "CLICK";
+    }
+    // COD va online: hech qachon create da PAID emas (faqat webhook)
+    const paymentStatus = "PENDING";
+    const initialStatus = "NEW";
     const source = body.source || "STORE";
     const label = deliveryLabel(
       body.deliveryType,
@@ -253,27 +256,13 @@ export async function POST(req: Request) {
         }
       }
 
-      const events =
-        initialStatus === "PAID"
-          ? [
-              {
-                status: "NEW",
-                title: "Buyurtma qabul qilindi",
-                note: `${source} · ${warehouse!.name} · ${label} · ${body.paymentMethod}`,
-              },
-              {
-                status: "PAID",
-                title: "To‘lov tasdiqlandi",
-                note: `${body.paymentMethod} · va’da: ${promise.label}`,
-              },
-            ]
-          : [
-              {
-                status: "NEW",
-                title: "Buyurtma qabul qilindi",
-                note: `${source} · ${warehouse!.name} · ${label} · ${body.paymentMethod} · ${promise.label} · Stock QR skanda yečiladi`,
-              },
-            ];
+      const events = [
+        {
+          status: "NEW",
+          title: "Buyurtma qabul qilindi",
+          note: `${source} · ${warehouse!.name} · ${label} · ${body.paymentMethod} · ${promise.label} · Stock QR skanda yečiladi`,
+        },
+      ];
 
       const deviceOrderToken = generateDeviceOrderToken();
       const deviceTokenHash = hashDeviceOrderToken(deviceOrderToken);
@@ -282,7 +271,7 @@ export async function POST(req: Request) {
         data: {
           orderNumber,
           status: initialStatus,
-          paymentMethod: body.paymentMethod,
+          paymentMethod: effectiveMethod,
           paymentStatus,
           subtotal,
           deliveryFee,
@@ -344,13 +333,28 @@ export async function POST(req: Request) {
     }
 
     let paymentUrl: string | null = null;
-    if (body.paymentMethod === "CLICK") {
+    if (effectiveMethod === "CLICK") {
       try {
         paymentUrl = await buildClickPayUrlForOrder(order.orderNumber, total);
       } catch (e) {
         console.error("[CLICK] pay url", e);
       }
+    } else if (effectiveMethod === "PAYME") {
+      try {
+        paymentUrl = await buildPaymeCheckoutUrlForOrder(order.orderNumber, total);
+      } catch (e) {
+        console.error("[PAYME] pay url", e);
+      }
     }
+
+    const paymentWarning =
+      body.paymentMethod === "CARD" && effectiveMethod === "CARD"
+        ? "Karta to‘lovi hozircha Click orqali. Admin → Sozlamalarda Click ulang."
+        : body.paymentMethod === "CARD" && effectiveMethod === "CLICK"
+          ? "Karta → Click to‘lov sahifasiga yo‘naltirildi."
+          : (effectiveMethod === "CLICK" || effectiveMethod === "PAYME") && !paymentUrl
+            ? `${effectiveMethod} sozlanmagan. Admin → Sozlamalar yoki Vercel Env (docs/TOLASH-ULASH.md).`
+            : null;
 
     const res = NextResponse.json({
       orderNumber: order.orderNumber,
@@ -360,11 +364,14 @@ export async function POST(req: Request) {
       deliveryLabel: label,
       promisedBy: order.promisedBy,
       promiseLabel: order.promiseLabel,
+      paymentMethod: effectiveMethod,
       paymentStatus: order.paymentStatus,
       paymentUrl,
+      checkoutUrl: paymentUrl,
       deviceOrderToken,
       notify,
       director,
+      paymentWarning,
     });
     res.cookies.set(cookieNameForOrder(order.orderNumber), deviceOrderToken, {
       httpOnly: false,

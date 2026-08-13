@@ -23,7 +23,7 @@ import {
 const payments = [
   { id: "CLICK", label: "Click" },
   { id: "PAYME", label: "Payme" },
-  { id: "CARD", label: "Visa / Mastercard" },
+  { id: "CARD", label: "Karta (Click orqali)" },
   { id: "COD", label: "Kuryerga naqd" },
 ];
 
@@ -450,11 +450,21 @@ export default function CheckoutPage() {
       });
       setHasSavedDraft(true);
       clear();
-      if (typeof data.paymentUrl === "string" && data.paymentUrl) {
-        window.location.href = data.paymentUrl;
+      const payUrl =
+        (typeof data.checkoutUrl === "string" && data.checkoutUrl) ||
+        (typeof data.paymentUrl === "string" && data.paymentUrl) ||
+        "";
+      if (payUrl) {
+        window.location.href = payUrl;
         return;
       }
-      router.push(`/orders/success?no=${data.orderNumber}`);
+      const qs = new URLSearchParams({ no: String(data.orderNumber) });
+      if (data.paymentMethod) qs.set("pay", String(data.paymentMethod));
+      if (data.paymentStatus) qs.set("ps", String(data.paymentStatus));
+      if (typeof data.paymentWarning === "string" && data.paymentWarning) {
+        qs.set("pw", "1");
+      }
+      router.push(`/orders/success?${qs.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Xatolik yuz berdi");
     } finally {

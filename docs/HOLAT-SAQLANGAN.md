@@ -5,6 +5,8 @@
 **Vizual:** `docs/VIZUAL-TIZIM.md` + rasmlar  
 **Real (production) reja:** `docs/PRODUCTION-REJA.md` — test emas, to‘liq ishlashi kerak  
 **Yetkazish strategiyasi:** `docs/YETKAZISH-STRATEGIYA.md` — Toshkent hub + SLA + BTS/Fargo/Yandex  
+**Ishga tushirish (kuryer + Click/Payme):** `docs/ISHGA-TUSHIRISH-REJA.md`  
+**To‘lov ulash:** `docs/TOLASH-ULASH.md`  
 **Deploy + Neon:** `docs/VERCEL-DEPLOY.md`  
 **Tiklash PDF qanday:** `docs/LOYIHA-TIKLASH-QANDAY.md`  
 **Private recovery PDF (parolli, gitignore):** `docs/private/LUXFABRIC-HOLAT-RECOVERY-2026-08-13.pdf`  
@@ -72,7 +74,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 
 - `prisma/schema.prisma` → `provider = "postgresql"`
 - Init migrate: `prisma/migrations/20260811173000_init_postgres/`
-- Keyingi: `20260813020000_click_payment_fields`, `…_product_reviews`, `…_product_meta_catalog`, `…_instagram_comments`
+- Keyingi: `…_click_payment_fields`, `…_payme_fields` (`20260813100000`), reviews/meta/comments/fulfillment/device/telegram
 - Eski SQLite: `prisma/migrations_sqlite_archive/`
 - `scripts/build.mjs` — Vercelda real `DATABASE_URL` bo‘lsa `prisma migrate deploy` + bo‘sh katalogda avtomatik seed
 - Skriptlar: `npm run db:deploy`, `npm run db:push`, `npm run db:seed` · `FORCE_SEED=1`
@@ -145,10 +147,17 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 ### 5) Reels arxiv + izohlar paneli
 - Chap Reels arxiv → Izohlar · sync · AI javob · `instagram_ai_comments` toggle.
 
-### 6) Click.uz skeleton
-- `src/lib/click.ts`, `click-webhook.ts`, `/api/click/prepare|complete`
-- Admin Settings: `click_*` yoki env `CLICK_*`
-- Migrate: `20260813020000_click_payment_fields`
+### 6) Click + Payme + COD/CARD (kod tayyor — kalitlar kerak)
+- **Ulash boshlandi (2026-08-13):** kod deploy jarayonda; **kalitlar kutilyapti** (mc.click.uz / business.payme.uz → Admin Sozlamalar).
+- Click: `src/lib/click.ts`, `click-webhook.ts`, `/api/click/prepare|complete` (+ `/api/click`)
+- Payme: `src/lib/payme.ts`, `payme-webhook.ts`, `/api/payme` (JSON-RPC)
+- Holat: `GET /api/payments/status` · qo‘llanma: `docs/TOLASH-ULASH.md` · reja: `docs/ISHGA-TUSHIRISH-REJA.md`
+- Checkout: CLICK/PAYME → `checkoutUrl`/`paymentUrl`; CARD → Click (agar sozlangan); COD → `PENDING`
+- Fake PAID yo‘q — faqat webhook → `PAID` + Telegram sync
+- Admin → Sozlamalar: `click_*` + `payme_*` (yoki Vercel `CLICK_*` / `PAYME_*`)
+- Migrate: `20260813020000_click_payment_fields`, `20260813100000_payme_fields`
+- **Lokal migrate (2026-08-13):** Neon P1000 auth — SQL `docs/TOLASH-ULASH.md` da; kalitlar `.env` da yo‘q → Salayev kabinetdan qo‘yadi
+- Success: `/orders/success` — online to‘lovda «kutilmoqda», webhookdan keyin PAID
 
 ### 7) Buyurtma kuzatish — maxfiylik (telefon / device token)
 - Pastki nav **Kuzatish** → `/orders` — «Buyurtmam qayerda?»: telefon (+998) + ixtiyoriy `LF-…`
@@ -177,7 +186,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 | Musiqa import | `ReelsManager` (kompyuter + kutubxona), `api/.../music/from-url` |
 | Webhook IG | `src/app/api/instagram/route.ts` |
 | Comments API | `src/app/api/admin/instagram/comments/route.ts` |
-| Click | `src/lib/click.ts`, `src/app/api/click/*` |
+| Click / Payme | `src/lib/click*.ts`, `payme*.ts`, `api/click/*`, `api/payme`, `docs/TOLASH-ULASH.md` |
 | Landing | `src/app/i/[slug]/page.tsx` |
 | Prisma | `prisma/schema.prisma` (**postgresql**) |
 | Build | `scripts/build.mjs` |
@@ -216,7 +225,9 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - [x] Instagram Login OAuth + ulanish
 - [x] Private recovery PDF (parolli; gitignore)
 - [x] `/i` bir-bosishda sotib olish + sharhlar MVP + AI izoh + Reels arxiv
-- [x] Click skeleton (kod)
+- [x] Click + Payme kod (webhook, checkout URL, Admin sozlamalar) — `docs/TOLASH-ULASH.md`
+- [ ] Click / Payme **merchant kalitlari** (mc.click.uz / business.payme.uz → Admin Sozlamalar)
+- [ ] Payme migrate Neon da (auth yangilash yoki SQL qo‘lda)
 - [ ] Telefon/ISP da domen ochilishini tasdiqlash
 - [ ] Haqiqiy `OPENAI_API_KEY` (ixtiyoriy — Vercel Env)
 - [ ] Webhook Meta da **comments** field yakuniy tasdiq

@@ -75,8 +75,8 @@ export function SettingsForm({
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-lf-card p-4 space-y-3">
-        <h2 className="font-semibold">To‘lov — Click</h2>
-        {field("click_merchant_id", "Click Merchant ID", "merchant.click.uz kabinetdan")}
+        <h2 className="font-semibold">To‘lov — Click + Payme</h2>
+        {field("click_merchant_id", "Click Merchant ID", "mc.click.uz kabinetdan")}
         {field("click_service_id", "Click Service ID")}
         {field(
           "click_secret_key",
@@ -84,29 +84,65 @@ export function SettingsForm({
           "Yoki Vercel env: CLICK_SECRET_KEY (tavsiya)",
           "password"
         )}
-        {field("payme_merchant_id", "Payme Merchant ID")}
+        {field("payme_merchant_id", "Payme Merchant ID", "business.payme.uz")}
+        {field(
+          "payme_key",
+          "Payme Key (secret)",
+          "Yoki Vercel: PAYME_KEY — Basic Auth Paycom:KEY",
+          "password"
+        )}
         <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-lf-muted space-y-1">
+          <p className="text-white/80 font-medium">Click callback (kabinetga qo‘ying):</p>
           <p>
-            Prepare URL:{" "}
+            Prepare:{" "}
             <span className="text-white">
               {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}
               /api/click/prepare
             </span>
           </p>
           <p>
-            Complete URL:{" "}
+            Complete:{" "}
             <span className="text-white">
               {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}
               /api/click/complete
             </span>
           </p>
-          <p className="pt-1">
-            Yoki ikkalasi uchun bitta:{" "}
+          <p className="pt-2 text-white/80 font-medium">Payme Merchant API URL:</p>
+          <p>
             <span className="text-white">
-              {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}/api/click
+              {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}/api/payme
             </span>
           </p>
+          <p className="pt-1">
+            Batafsil: docs/TOLASH-ULASH.md · Ishga: docs/ISHGA-TUSHIRISH-REJA.md
+          </p>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-lf-card p-4 space-y-3">
+        <h2 className="font-semibold">Yetkazish — kuryer kontaktlari</h2>
+        <p className="text-xs text-lf-muted">
+          Shartnoma / call-center ma’lumotlari (ops uchun). To‘liq API kalitlari emas — BTS/Fargo
+          hujjat kelguncha manual trek. Ro‘yxat: docs/ISHGA-TUSHIRISH-REJA.md · katalog:
+          bts.uz, fargo.uz, delivery.yandex.uz, uz.post
+        </p>
+        {field(
+          "default_courier_partner",
+          "Asosiy kuryer (kod)",
+          "Masalan: BTS yoki FARGO — shop-ships default eslatma"
+        )}
+        {field("courier_bts_contact", "BTS kontakt", "1230 yoki manager telefon / Telegram")}
+        {field("courier_fargo_contact", "Fargo kontakt", "+998 71 200 00 37 yoki manager")}
+        {field(
+          "courier_yandex_contact",
+          "Yandex Delivery kontakt",
+          "B2B manager / ariza holati eslatmasi"
+        )}
+        {field(
+          "courier_notes",
+          "Ops izoh",
+          "Pickup soati, COD shartlari, ofis manzili — qisqa"
+        )}
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-lf-card p-4 space-y-3">

@@ -209,6 +209,7 @@ Bayram / ob-havo / yo‘l yopilishi — UI da «taxminiy», kafolat emas.
 | Tracking timeline | `src/lib/order-tracking.ts`, `/track/[orderNumber]` |
 | Admin pipeline | `src/app/admin/orders/page.tsx` |
 | Holat | `docs/HOLAT-SAQLANGAN.md` |
+| Ishga tushirish (shartnoma + to‘lov) | `docs/ISHGA-TUSHIRISH-REJA.md` |
 
 ---
 

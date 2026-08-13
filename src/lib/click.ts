@@ -57,14 +57,14 @@ export function buildClickPayUrl(opts: {
 
 export async function buildClickPayUrlForOrder(orderNumber: string, amount: number) {
   const cfg = await getClickConfig();
-  if (!cfg.merchantId || !cfg.serviceId) return null;
+  if (!isClickConfigured(cfg)) return null;
   const appUrl = await getAppUrl();
   return buildClickPayUrl({
     merchantId: cfg.merchantId,
     serviceId: cfg.serviceId,
     amount,
     transactionParam: orderNumber,
-    returnUrl: `${appUrl}/orders/success?no=${encodeURIComponent(orderNumber)}`,
+    returnUrl: `${appUrl}/orders/success?no=${encodeURIComponent(orderNumber)}&pay=CLICK&ps=PENDING`,
   });
 }
 

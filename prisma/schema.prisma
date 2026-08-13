@@ -178,6 +178,13 @@ model Order {
   /// Click SHOP API: merchant_prepare_id / click_trans_id
   clickTransId      String?
   clickPrepareId    Int?
+  /// Payme Merchant API
+  paymeId           String?         @unique
+  paymeState        Int?
+  paymeCreateTime   BigInt?
+  paymePerformTime  BigInt?
+  paymeCancelTime   BigInt?
+  paymeReason       Int?
   customerId        String?
   customer          Customer?       @relation(fields: [customerId], references: [id])
   warehouseId       String?

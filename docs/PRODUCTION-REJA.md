@@ -64,4 +64,9 @@ Admin → Instagram → Meta/DM:
 - [ ] Birinchi real Reel joylash
 - [ ] Media Blob/S3 (keyinroq)
 
-Batafsil holat: `docs/HOLAT-SAQLANGAN.md`
+## Keyingi: to‘lov + kuryer (2026-08-13)
+- [ ] Click kalitlar + callback → `docs/TOLASH-ULASH.md`
+- [ ] Payme + Neon migrate (Payme ustunlari)
+- [ ] BTS / Fargo shartnoma (manual trek avval) → `docs/ISHGA-TUSHIRISH-REJA.md`
+
+Batafsil holat: `docs/HOLAT-SAQLANGAN.md` · Ishga reja: `docs/ISHGA-TUSHIRISH-REJA.md`

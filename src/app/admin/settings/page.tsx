@@ -21,6 +21,12 @@ export default async function AdminSettingsPage() {
     "click_service_id",
     "click_secret_key",
     "payme_merchant_id",
+    "payme_key",
+    "default_courier_partner",
+    "courier_bts_contact",
+    "courier_fargo_contact",
+    "courier_yandex_contact",
+    "courier_notes",
   ]);
   const tg = await telegramOrdersConfigured();
 

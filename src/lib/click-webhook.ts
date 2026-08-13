@@ -170,6 +170,13 @@ export async function handleClickWebhook(req: Request, forcedAction?: 0 | 1) {
     console.error("[CLICK] director notify", e);
   }
 
+  try {
+    const { syncTelegramOrderMessage } = await import("@/lib/telegram-orders");
+    await syncTelegramOrderMessage(order.id);
+  } catch (e) {
+    console.error("[CLICK] telegram sync", e);
+  }
+
   if (advanceToPaid) {
     try {
       await notifyOrderStatus({

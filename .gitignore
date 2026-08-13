@@ -85,3 +85,8 @@ tmp-confirm-meta.js
 tmp-meta-confirmed.png
 
 tmp-ig-oauth-flow.js
+
+.telegram-webhook-secret.tmp
+scripts/check-telegram-env.mjs
+
+.env.vercel.check
