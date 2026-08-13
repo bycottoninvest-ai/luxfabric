@@ -21,14 +21,19 @@ export async function POST(req: Request) {
   try {
     const body = schema.parse(await req.json());
     const email = (body.email || DEFAULT_EMAIL).trim().toLowerCase();
-    const password = body.password;
-    const envPass = process.env.ADMIN_PASSWORD?.trim();
+    const password = body.password.trim();
+    // Vercel UI da ba’zan "parol" qo‘shtirnoq bilan saqlanadi
+    const envPass = (process.env.ADMIN_PASSWORD || "")
+      .trim()
+      .replace(/^["']+|["']+$/g, "");
 
     let user = await prisma.adminUser.findUnique({ where: { email } });
 
     let ok = false;
+    let matchedEnv = false;
     if (envPass && password === envPass) {
       ok = true;
+      matchedEnv = true;
     } else if (user) {
       ok = verifyPassword(password, user.passwordHash);
     }
@@ -49,11 +54,8 @@ export async function POST(req: Request) {
           role: "ADMIN",
         },
       });
-    } else if (
-      envPass &&
-      password === envPass &&
-      !user.passwordHash.startsWith("scrypt$")
-    ) {
+    } else if (matchedEnv) {
+      // Vercel ADMIN_PASSWORD yangilanganda DB hash ham sinxron bo‘lsin
       await prisma.adminUser.update({
         where: { id: user.id },
         data: { passwordHash: hashPassword(password) },
