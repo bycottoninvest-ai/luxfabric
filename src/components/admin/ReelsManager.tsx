@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Copy,
+  ExternalLink,
   Flame,
+  Link2,
   MessageCircle,
   Music2,
   PanelLeft,
@@ -21,6 +23,9 @@ import { uploadAdminMedia } from "@/lib/client-upload";
 import { productBuyUrl } from "@/lib/ig-caption";
 
 const PUBLIC_ORIGIN = "https://www.luxfabricshop.uz";
+const IG_PROFILE_URL = "https://www.instagram.com/luxfabric.shop/";
+const IG_HANDLE = "@luxfabric.shop";
+const SITE_REELS_PREVIEW = "/instagram";
 
 type Product = { id: string; name: string; slug: string; price: number };
 type MusicTrack = {
@@ -156,6 +161,9 @@ export function ReelsManager({
     "Instagram rasmiy xitlarini to‘g‘ridan-to‘g‘ri olish taqiqlangan; shu yerda litsenziyalangan trend uslubidagi treklar."
   );
   const [trendBusyId, setTrendBusyId] = useState<string | null>(null);
+  const [audioUrlInput, setAudioUrlInput] = useState("");
+  const [urlImportBusy, setUrlImportBusy] = useState(false);
+  const [igPanelOpen, setIgPanelOpen] = useState(true);
 
   /** Yon panel — mavjud Reelni tahrirlash + izohlar */
   const [editing, setEditing] = useState<Reel | null>(null);
@@ -366,7 +374,7 @@ export function ReelsManager({
       setMusicUrl(url);
       setMusicTitle(title);
       const track = await addMusicToLibrary(url, title, artist);
-      setMsg(`Musiqa kutubxonaga qo‘shildi ✓ (${track.title}) — yangi Reelga avtomatik tanlandi`);
+      setMsg(`Yaxshi ✓ · «${track.title}» kutubxonaga + yangi Reelga avtomatik biriktirildi`);
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Musiqa xatosi");
@@ -393,14 +401,22 @@ export function ReelsManager({
     }
   }
 
+  /** Trend/kutubxona trekini joriy yangi Reel draftiga audio sifatida biriktiradi. */
+  function attachMusicToReelDraft(trackId: string, label?: string) {
+    setMusicId(trackId);
+    const track = musicTracks.find((m) => m.id === trackId);
+    setMsg(
+      `Yaxshi ✓ · «${label || track?.title || "musiqa"}» yangi Reelga avtomatik biriktirildi`
+    );
+  }
+
   /** Trend RF trek → kutubxona + yangi Reel uchun tanlash (mux oqimi). */
   async function attachTrendTrack(t: TrendTrack) {
     const already = music.find(
       (m) => m.fileUrl === t.fileUrl || (m.title === t.title && m.artist === t.artist)
     );
     if (already) {
-      setMusicId(already.id);
-      setMsg(`Trend musiqa tanlandi ✓ (${already.title}) — Reelga birikadi`);
+      attachMusicToReelDraft(already.id, already.title);
       return;
     }
     setTrendBusyId(t.id);
@@ -408,13 +424,51 @@ export function ReelsManager({
     try {
       const track = await addMusicToLibrary(t.fileUrl, t.title, t.artist);
       setMsg(
-        `Trend: «${track.title}» kutubxonaga qo‘shildi ✓ — yangi Reelga avtomatik tanlandi`
+        `Yaxshi ✓ · «${track.title}» kutubxonaga + yangi Reelga avtomatik biriktirildi`
       );
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Trend musiqa xatosi");
     } finally {
       setTrendBusyId(null);
+    }
+  }
+
+  /** Faqat to‘g‘ridan-to‘g‘ri audio URL → server saqlaydi → kutubxona + Reel. */
+  async function importMusicFromUrl() {
+    const url = audioUrlInput.trim();
+    if (!url) {
+      setMsg("❗ Audio URL kiriting (to‘g‘ridan-to‘g‘ri .mp3/.m4a/.aac)");
+      return;
+    }
+    setUrlImportBusy(true);
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/admin/instagram/music/from-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          title: musicTitle.trim() || undefined,
+          artist: musicArtist.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "URL dan yuklab bo‘lmadi");
+      setMusic((m) => [data, ...m]);
+      setMusicId(data.id);
+      setAudioUrlInput("");
+      setMusicTitle("");
+      setMsg(
+        `Yaxshi ✓ · «${data.title}» URL dan kutubxonaga tushdi — yangi Reelga avtomatik biriktirildi`
+      );
+      router.refresh();
+    } catch (e) {
+      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ URL musiqa xatosi");
+    } finally {
+      setUrlImportBusy(false);
+      setBusy(false);
     }
   }
 
@@ -851,13 +905,15 @@ export function ReelsManager({
         </p>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
       <section className="space-y-4">
         <div className="flex items-center gap-2 px-0.5">
           <Music2 className="h-5 w-5 text-lf-red" />
           <h2 className="text-lg font-semibold tracking-tight">Musiqa kutubxonasi</h2>
         </div>
         <p className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100/90">
-          {trendDisclaimer}
+          Saytdan ommaviy musiqa o‘g‘irlash mumkin emas; faqat to‘g‘ridan-to‘g‘ri audio link yoki
+          kompyuter fayli. {trendDisclaimer}
         </p>
 
         {/* 1 — Internet kutubxonadan tanlash */}
@@ -870,8 +926,8 @@ export function ReelsManager({
               </h3>
             </div>
             <p className="text-xs text-white/55 sm:pl-7">
-              Trend / Xit RF katalog — tinglang va bir zumda Reelga biriktiring. Meta IG hit MP3
-              scrape qilinmaydi.
+              Trend / Xit RF katalog — tinglang → «Yaxshi — Reelga». Meta IG hit MP3 scrape
+              qilinmaydi.
             </p>
           </div>
           {trendTracks.length === 0 && (
@@ -924,8 +980,8 @@ export function ReelsManager({
                         ? "Qo‘shilmoqda…"
                         : inLib
                           ? selected
-                            ? "Tanlangan ✓"
-                            : "Reelga tanlash"
+                            ? "Reelda ✓"
+                            : "Yaxshi — Reelga"
                           : "Kutubxonaga + Reelga"}
                     </button>
                   </div>
@@ -991,7 +1047,7 @@ export function ReelsManager({
                 onClick={saveMusic}
                 className="rounded-xl bg-lf-red px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
               >
-                Kutubxonaga qo‘shish
+                Kutubxonaga + Reelga
               </button>
             )}
           </div>
@@ -1003,11 +1059,11 @@ export function ReelsManager({
               <span className="text-[11px] text-white/40">({music.length})</span>
             </div>
             <p className="text-xs text-white/45">
-              Saqlangan treklar — yangi Reelda avtomatik tanlanadi (ffmpeg mux).
+              «Yaxshi — Reelga» — trek joriy yangi Reel draftiga darhol birikadi (saqlashda mux).
             </p>
             {music.length === 0 && (
               <p className="text-xs text-amber-300/80">
-                Hali musiqa yo‘q — yuqoridan Trend tanlang yoki MP3 yuklang.
+                Hali musiqa yo‘q — Trend, URL yoki MP3 qo‘shing.
               </p>
             )}
             <div className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
@@ -1026,13 +1082,10 @@ export function ReelsManager({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setMusicId(m.id);
-                        setMsg(`Musiqa tanlandi ✓ · ${m.title}`);
-                      }}
-                      className="rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-semibold"
+                      onClick={() => attachMusicToReelDraft(m.id, m.title)}
+                      className="rounded-lg bg-lf-red/90 px-2.5 py-1.5 text-xs font-semibold text-white"
                     >
-                      {musicId === m.id ? "Tanlangan" : "Tanlash"}
+                      {musicId === m.id ? "Reelda ✓" : "Yaxshi — Reelga"}
                     </button>
                     <button
                       type="button"
@@ -1047,7 +1100,117 @@ export function ReelsManager({
             </div>
           </div>
         </div>
+
+        {/* 3 — URL dan (faqat to‘g‘ridan-to‘g‘ri audio) */}
+        <div className="space-y-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-4 sm:p-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 shrink-0 text-emerald-300/90" />
+              <h3 className="text-base font-bold tracking-tight sm:text-lg">
+                3. URL dan
+              </h3>
+            </div>
+            <p className="text-xs text-white/55 sm:pl-7">
+              To‘g‘ridan-to‘g‘ri audio havola (Pixabay CDN, o‘z server, Blob). YouTube / Instagram /
+              Spotify / HTML sahifa — rad etiladi.
+            </p>
+          </div>
+          <label className="block space-y-1.5">
+            <span className="text-xs uppercase tracking-[0.12em] text-white/45">Audio URL</span>
+            <input
+              value={audioUrlInput}
+              onChange={(e) => setAudioUrlInput(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-emerald-400/60 focus:ring-2"
+              placeholder="https://…/track.mp3"
+              inputMode="url"
+              autoComplete="off"
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={urlImportBusy || busy || !audioUrlInput.trim()}
+              onClick={() => void importMusicFromUrl()}
+              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {urlImportBusy ? "Yuklanmoqda…" : "URL dan kutubxonaga + Reelga"}
+            </button>
+            <span className="text-[11px] text-white/40">.mp3 / .m4a / .aac yoki Content-Type audio/*</span>
+          </div>
+        </div>
       </section>
+
+      {/* Yon panel — Instagram (iframe odatda bloklanadi) */}
+      <aside
+        className={`${
+          igPanelOpen ? "flex" : "hidden lg:flex"
+        } flex-col gap-3 rounded-2xl border border-pink-400/30 bg-gradient-to-b from-pink-500/10 to-white/5 p-3 lg:sticky lg:top-4`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.1em] text-pink-200/80">
+              Instagram
+            </div>
+            <div className="mt-0.5 text-sm font-semibold text-white">{IG_HANDLE}</div>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg bg-white/10 p-1.5 lg:hidden"
+            onClick={() => setIgPanelOpen(false)}
+            aria-label="Panelni yopish"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <p className="text-[11px] leading-relaxed text-white/50">
+          Instagram odatda iframe ichida ochilmaydi. Trend musiqani yonida ko‘rish uchun profilni
+          yangi oynada oching; saytimiz Reels preview pastda.
+        </p>
+        <a
+          href={IG_PROFILE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-pink-600 to-orange-500 px-3 py-2.5 text-xs font-semibold text-white"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          Yangi oynada Instagram
+        </a>
+        <a
+          href={SITE_REELS_PREVIEW}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-medium text-white/85"
+        >
+          Sayt Reels preview
+        </a>
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-black/40">
+          <div className="border-b border-white/10 px-2 py-1 text-[10px] uppercase tracking-wide text-white/35">
+            /instagram (iframe)
+          </div>
+          <iframe
+            title="LUXFABRIC Reels preview"
+            src={SITE_REELS_PREVIEW}
+            className="h-[320px] w-full bg-black"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <p className="text-[10px] text-white/35">
+          Real IG feed bu yerda emas — Meta iframe ni bloklaydi. Musiqa: RF katalog / fayl / to‘g‘ri
+          audio URL.
+        </p>
+      </aside>
+      </div>
+
+      {!igPanelOpen && (
+        <button
+          type="button"
+          onClick={() => setIgPanelOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-pink-400/30 bg-pink-500/15 px-3 py-2 text-xs font-semibold text-pink-100 lg:hidden"
+        >
+          Instagram {IG_HANDLE}
+        </button>
+      )}
 
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
         <div className="flex items-center gap-2">

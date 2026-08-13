@@ -20,6 +20,6 @@ export async function GET() {
     ...catalog,
     externalHint,
     howToPickUz:
-      "Xit/Trend dan trekni tinglang → «Kutubxonaga + Reelga» — mavjud mux oqimi bilan videoga birikadi. Yoki «Kompyuterdan musiqa» bilan o‘z MP3 yuklang.",
+      "Xit/Trend dan trekni tinglang → «Yaxshi — Reelga» yoki «Kutubxonaga + Reelga». Yoki Kompyuter / URL dan (faqat to‘g‘ridan-to‘g‘ri audio). YouTube/IG/Spotify scrape yo‘q.",
   });
 }
