@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { StoreShell } from "@/components/StoreShell";
 import { useCart } from "@/lib/cart";
 import { cn, formatSom, isValidUzPhone, maskUzPhone } from "@/lib/utils";
+import { saveDeviceOrderToken } from "@/lib/device-order-storage";
 import { UZ_REGIONS, formatCityLabel, getRegionByCode, matchUzFromGeoText } from "@/lib/uzbekistan-regions";
 import {
   formatBranchLabel,
@@ -430,6 +431,9 @@ export default function CheckoutPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Xatolik");
+      if (typeof data.deviceOrderToken === "string" && data.orderNumber) {
+        saveDeviceOrderToken(data.orderNumber, data.deviceOrderToken);
+      }
       saveCustomerDraft({
         name: form.name,
         phone: form.phone,

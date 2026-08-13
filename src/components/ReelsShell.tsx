@@ -11,7 +11,7 @@ const tabs = [
   { href: "/instagram", label: "Reels", icon: Clapperboard },
   { href: "/catalog", label: "Katalog", icon: LayoutGrid },
   { href: "/cart", label: "Savat", icon: ShoppingBag },
-  { href: "/orders", label: "Buyurtma", icon: Package },
+  { href: "/orders", label: "Kuzatish", icon: Package },
 ];
 
 /** To‘liq ekran Reels — do‘kon headeri yo‘q, Instagram uslubi */

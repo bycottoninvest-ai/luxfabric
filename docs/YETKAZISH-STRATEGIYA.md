@@ -17,7 +17,7 @@
 | **Fulfillment pipeline** | `NEW→PAID→PICKING→PACKED→SHIPPED\|READY_PICKUP→DELIVERED→DONE` · har o‘tishda event | `src/lib/fulfillment.ts`, admin buyurtmalar |
 | **PVZ-first checkout** | «Uyga» vs «Punktdan» · punkt majburiy PVZ da | `checkout/page.tsx` |
 | **Ops** | Cutoff eslatma · «Bugun jo‘natilishi kerak» · SHIPPED da trek majburiy | `/admin/orders` |
-| **Mijoz track** | `promisedBy`, hozirgi bosqich, keyingi qadam, kuryer link · **Live GPS yo‘q** | `/track/[orderNumber]` |
+| **Mijoz track** | `promisedBy`, timeline · **telefon yoki device token** majburiy · Live GPS yo‘q | `/orders` (Kuzatish), `/track/[orderNumber]`, `POST /api/track/lookup` |
 
 **World patternlar (moslashtirilgan):** Cainiao/JD — hub + cutoff + ship-by + expected-by; Pinduoduo — PVZ default; DHL Packstation / Zalando — Click&Collect + carrier matrix + aniq SLA bands, overpromise yo‘q.
 

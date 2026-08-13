@@ -142,6 +142,16 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Admin Settings: `click_*` yoki env `CLICK_*`
 - Migrate: `20260813020000_click_payment_fields`
 
+### 7) Buyurtma kuzatish — maxfiylik (telefon / device token)
+- Pastki nav **Kuzatish** → `/orders` — «Buyurtmam qayerda?»: telefon (+998) + ixtiyoriy `LF-…`
+- `/track/LF-…` deep link ham **telefon yoki qurilma tokenisiz** tafsilot bermaydi (admin session alohida)
+- API: `POST /api/track/lookup` — phone match (normalize +998) yoki `deviceToken` / `deviceTokens`
+- Checkout muvaffaqiyatida `deviceOrderToken` → localStorage + cookie; serverda faqat `deviceTokenHash` (SHA-256)
+- Shu qurilmada «Mening buyurtmalarim» avtomatik; boshqa qurilmada telefon + LF majburiy
+- Rate limit: IP / phone+order brute-force
+- Migrate: `20260813080000_order_device_token`
+- Ochiq `GET /api/orders` endi faqat admin
+
 ---
 
 ## Muhim fayllar
@@ -150,6 +160,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 |--------|------|
 | Holat (public) | `docs/HOLAT-SAQLANGAN.md` |
 | Yetkazish strategiyasi | `docs/YETKAZISH-STRATEGIYA.md` |
+| Mijoz kuzatish (private) | `/orders`, `/track/[id]`, `api/track/lookup`, `order-access.ts` |
 | Cursor qoida | `.cursor/rules/luxfabric-holat.mdc` |
 | Admin Reels UI | `src/components/admin/ReelsManager.tsx` |
 | Workspace | `src/components/admin/InstagramWorkspace.tsx` |
@@ -204,6 +215,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - [ ] Neon parol Reset · buyurtma/SMS/to‘lov to‘liq tekshiruv · Monitoring
 - [ ] To‘liq WB: Q&A, “faqat xarid qilganlar”, video-sharh
 - [x] Yetkazish strategiyasi hujjati + checkout/tracking ETA (`docs/YETKAZISH-STRATEGIYA.md`)
+- [x] Buyurtma kuzatish maxfiyligi (telefon + device token; LF yolg‘iz yetarli emas)
 
 ---
 

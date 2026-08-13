@@ -188,11 +188,14 @@ model Order {
   events            TrackingEvent[]
   scans             ScanEvent[]
   reviews           Review[]
+  /// Checkout qurilmasiga berilgan tokenning SHA-256 heshi (plaintext saqlanmaydi)
+  deviceTokenHash   String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
   @@index([shipBy, status])
   @@index([regionCode])
+  @@index([customerPhone])
 }
 
 /// Mahsulot sharhi (Wildberries-lite): yulduz + matn + foto

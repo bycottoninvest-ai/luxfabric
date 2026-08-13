@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { generateOrderNumber, formatSom, isValidUzPhone, maskUzPhone } from "@/lib/utils";
@@ -14,6 +15,12 @@ import {
 import { computeDeliveryPromise } from "@/lib/delivery-promise";
 import { defaultHandoffForRegion, shopDefaultCourierCode } from "@/lib/carrier-matrix";
 import { matchUzFromGeoText } from "@/lib/uzbekistan-regions";
+import {
+  generateDeviceOrderToken,
+  hashDeviceOrderToken,
+} from "@/lib/order-device-token";
+import { cookieNameForOrder } from "@/lib/order-access";
+import { ADMIN_COOKIE, readSessionToken } from "@/lib/admin-session";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -233,7 +240,7 @@ export async function POST(req: Request) {
       handoffMode,
     });
 
-    const order = await prisma.$transaction(async (tx) => {
+    const { order, deviceOrderToken } = await prisma.$transaction(async (tx) => {
       // Stock faqat tekshiriladi — haqiqiy yechish QR skanerda (omborda)
       for (const item of body.items) {
         const stock = await tx.warehouseStock.findUnique({
@@ -268,7 +275,10 @@ export async function POST(req: Request) {
               },
             ];
 
-      return tx.order.create({
+      const deviceOrderToken = generateDeviceOrderToken();
+      const deviceTokenHash = hashDeviceOrderToken(deviceOrderToken);
+
+      const created = await tx.order.create({
         data: {
           orderNumber,
           status: initialStatus,
@@ -299,6 +309,7 @@ export async function POST(req: Request) {
           customerId: customer.id,
           warehouseId: warehouse!.id,
           stockDeducted: false,
+          deviceTokenHash,
           items: {
             create: body.items.map((i) => ({
               productId: i.productId,
@@ -311,6 +322,7 @@ export async function POST(req: Request) {
           events: { create: events },
         },
       });
+      return { order: created, deviceOrderToken };
     });
 
     const notify = await notifyOrderCreated({
@@ -340,7 +352,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       orderNumber: order.orderNumber,
       id: order.id,
       warehouse: warehouse.name,
@@ -350,9 +362,18 @@ export async function POST(req: Request) {
       promiseLabel: order.promiseLabel,
       paymentStatus: order.paymentStatus,
       paymentUrl,
+      deviceOrderToken,
       notify,
       director,
     });
+    res.cookies.set(cookieNameForOrder(order.orderNumber), deviceOrderToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 90 * 24 * 60 * 60,
+    });
+    return res;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server xatosi";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -360,6 +381,11 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  const jar = await cookies();
+  const session = await readSessionToken(jar.get(ADMIN_COOKIE)?.value);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const orders = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
