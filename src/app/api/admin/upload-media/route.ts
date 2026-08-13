@@ -60,7 +60,7 @@ export async function POST(req: Request) {
           ? "products"
           : kind === "video"
             ? "reels"
-            : "music";
+            : "audio";
     const name = makeUploadName(safeExt);
     const buffer = Buffer.from(await file.arrayBuffer());
     const url = await storeUpload({

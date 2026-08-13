@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { removeStoredUpload } from "@/lib/storage";
+import { isProtectedMusicUrl, removeStoredUpload } from "@/lib/storage";
 
 export async function GET() {
   const tracks = await prisma.instagramMusic.findMany({
@@ -40,36 +40,48 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const id = new URL(req.url).searchParams.get("id");
+    const id = new URL(req.url).searchParams.get("id")?.trim();
     if (!id) return NextResponse.json({ error: "id kerak" }, { status: 400 });
 
     const track = await prisma.instagramMusic.findUnique({
       where: { id },
       include: { _count: { select: { reels: true } } },
     });
+
+    // Allaqachon yo‘q — UI uchun muvaffaqiyat (idempotent)
     if (!track) {
-      return NextResponse.json({ error: "Trek topilmadi" }, { status: 404 });
+      return NextResponse.json({ ok: true, alreadyGone: true, detachedReels: 0 });
     }
 
-    // Reel FK bloklamasligi uchun bog‘lanishni uzamiz
-    const detached = await prisma.instagramReel.updateMany({
-      where: { musicId: id },
-      data: { musicId: null },
+    const fileUrl = track.fileUrl;
+    const keepStorage = isProtectedMusicUrl(fileUrl);
+
+    const detached = await prisma.$transaction(async (tx) => {
+      const upd = await tx.instagramReel.updateMany({
+        where: { musicId: id },
+        data: { musicId: null },
+      });
+      await tx.instagramMusic.delete({ where: { id } });
+      return upd.count;
     });
 
-    await prisma.instagramMusic.delete({ where: { id } });
-
-    // Yuklangan fayl — best-effort; /music/trends/* himoyalangan (diskda qoladi)
-    try {
-      await removeStoredUpload(track.fileUrl);
-    } catch {
-      /* ignore storage cleanup errors */
+    let storageRemoved = false;
+    let storageError: string | null = null;
+    if (!keepStorage) {
+      try {
+        await removeStoredUpload(fileUrl);
+        storageRemoved = true;
+      } catch (e) {
+        storageError = e instanceof Error ? e.message : "Fayl o‘chirilmadi";
+      }
     }
 
     return NextResponse.json({
       ok: true,
-      detachedReels: detached.count,
-      storageKept: track.fileUrl.includes("/music/"),
+      detachedReels: detached,
+      storageKept: keepStorage,
+      storageRemoved,
+      storageError,
     });
   } catch (err) {
     return NextResponse.json(

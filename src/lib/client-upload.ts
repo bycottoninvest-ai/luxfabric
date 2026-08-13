@@ -14,15 +14,18 @@ function makeName(ext: string) {
 export async function uploadAdminMedia(
   file: File,
   kind: "image" | "video" | "audio",
-  folder?: "stories" | "products" | "reels" | "music"
+  folder?: "stories" | "products" | "reels" | "audio" | "music"
 ): Promise<string> {
   const ext =
     file.name.split(".").pop()?.toLowerCase() ||
     (kind === "video" ? "mp4" : kind === "audio" ? "mp3" : "jpg");
 
+  // `audio` — Blob/local yuklash; eski `music` faqat static beds (public/music)
   const resolvedFolder =
-    folder ||
-    (kind === "image" ? "products" : kind === "video" ? "reels" : "music");
+    folder === "music"
+      ? "audio"
+      : folder ||
+        (kind === "image" ? "products" : kind === "video" ? "reels" : "audio");
 
   const pathname = `${resolvedFolder}/${makeName(ext)}`;
 

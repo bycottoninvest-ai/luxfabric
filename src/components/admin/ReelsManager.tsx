@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -163,6 +163,11 @@ export function ReelsManager({
   const [reels, setReels] = useState(initialReels);
   const [music, setMusic] = useState(initialMusic);
   const [msg, setMsg] = useState("");
+  /** Kutubxona trash xabari — ro‘yxat yonida (global msg pastga ketmasin). */
+  const [musicMsg, setMusicMsg] = useState("");
+  const [deletingMusicId, setDeletingMusicId] = useState<string | null>(null);
+  /** Server refresh eski props qaytarmasligi uchun lokal o‘chirilgan id lar */
+  const removedMusicIdsRef = useRef<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [chatgpt, setChatgpt] = useState<{ configured: boolean; model: string | null } | null>(null);
@@ -247,7 +252,12 @@ export function ReelsManager({
   }, [musicSource, selectedLibraryTrack, audioUrlInput, urlImportedMusicId, musicTracks]);
 
   useEffect(() => {
-    setMusic(initialMusic);
+    const removed = removedMusicIdsRef.current;
+    // Server endi yo‘q deb qaytargan id larni ref dan tozalash
+    for (const id of [...removed]) {
+      if (!initialMusic.some((m) => m.id === id)) removed.delete(id);
+    }
+    setMusic(initialMusic.filter((m) => !removed.has(m.id)));
   }, [initialMusic]);
 
   useEffect(() => {
@@ -1017,36 +1027,50 @@ export function ReelsManager({
       usedBy > 0
         ? `\n\n${usedBy} ta Reelda ishlatilgan — bog‘lanish uziladi, trek kutubxonadan o‘chadi.`
         : "";
-    if (!confirm(`${label} ni o‘chirasizmi?${hint}`)) return;
+    if (!window.confirm(`${label} ni o‘chirasizmi?${hint}`)) return;
 
-    setBusy(true);
+    const snapshot = music;
+    setDeletingMusicId(id);
+    setMusicMsg("");
     setMsg("");
+    removedMusicIdsRef.current.add(id);
+    // Darhol UI dan yo‘qoladi
+    setMusic((list) => list.filter((m) => m.id !== id));
+    if (musicId === id) setMusicId("");
+    if (urlImportedMusicId === id) setUrlImportedMusicId(null);
+    if (editMusicId === id) setEditMusicId("");
+    setReels((list) =>
+      list.map((r) =>
+        r.musicId === id ? { ...r, musicId: null, music: null } : r
+      )
+    );
+    if (editing?.musicId === id) {
+      setEditing({ ...editing, musicId: null, music: null });
+    }
+
     try {
       const res = await fetch(
         `/api/admin/instagram/music?id=${encodeURIComponent(id)}`,
         { method: "DELETE" }
       );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "O‘chirish xatosi");
-
-      setMusic((list) => list.filter((m) => m.id !== id));
-      if (musicId === id) setMusicId("");
-      if (urlImportedMusicId === id) setUrlImportedMusicId(null);
-      if (editMusicId === id) setEditMusicId("");
-      setReels((list) =>
-        list.map((r) =>
-          r.musicId === id ? { ...r, musicId: null, music: null } : r
-        )
-      );
-      if (editing?.musicId === id) {
-        setEditing({ ...editing, musicId: null, music: null });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : `O‘chirish xatosi (${res.status})`
+        );
       }
+      setMusicMsg(`${label} o‘chirildi ✓`);
       setMsg(`${label} o‘chirildi ✓`);
       router.refresh();
     } catch (e) {
-      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi");
+      removedMusicIdsRef.current.delete(id);
+      setMusic(snapshot);
+      const errText =
+        e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi";
+      setMusicMsg(errText);
+      setMsg(errText);
     } finally {
-      setBusy(false);
+      setDeletingMusicId(null);
     }
   }
 
@@ -1288,6 +1312,16 @@ export function ReelsManager({
             <p className="text-xs text-white/45">
               «Yaxshi — Reelga» — trek joriy yangi Reel draftiga darhol birikadi (saqlashda mux).
             </p>
+            {musicMsg && (
+              <p
+                className={`text-sm ${
+                  musicMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"
+                }`}
+                role="status"
+              >
+                {musicMsg}
+              </p>
+            )}
             {music.length === 0 && (
               <p className="text-xs text-amber-300/80">
                 Hali musiqa yo‘q — MP3 yuklang yoki URL dan qo‘shing.
@@ -1316,8 +1350,12 @@ export function ReelsManager({
                     </button>
                     <button
                       type="button"
-                      disabled={busy}
-                      onClick={() => void removeMusic(m.id)}
+                      disabled={deletingMusicId === m.id}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void removeMusic(m.id);
+                      }}
                       className="rounded-lg bg-white/10 p-2 disabled:opacity-50"
                       aria-label={`${m.title} ni o‘chirish`}
                       title="Kutubxonadan o‘chirish"

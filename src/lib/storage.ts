@@ -39,35 +39,61 @@ export function makeUploadName(ext: string): string {
   return `${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`;
 }
 
-/** Trend/RF static beds — DB dan o‘chirish mumkin, diskdagi fayl himoyalangan. */
-export function isProtectedMusicUrl(fileUrl: string): boolean {
-  if (!fileUrl) return false;
+function isBlobUrl(fileUrl: string): boolean {
   return (
-    fileUrl.includes("/music/trends/") ||
-    fileUrl.startsWith("/music/") ||
-    /\/music\/[^/]+\.(mp3|m4a|aac|wav)(\?|$)/i.test(fileUrl)
+    fileUrl.includes("blob.vercel-storage.com") ||
+    fileUrl.includes("public.blob.vercel-storage.com")
   );
 }
 
 /**
+ * Faqat sayt static beds: `public/music/*` (masalan /music/trends/...).
+ * Blob yoki /uploads/... dagi yuklangan treklar HIMOYALANMAYDI — o‘chiriladi.
+ * Eski bug: Blob `…/music/xxx.mp3` regex orqali “protected” deb qolib, o‘chmas edi.
+ */
+export function isProtectedMusicUrl(fileUrl: string): boolean {
+  if (!fileUrl) return false;
+  if (isBlobUrl(fileUrl)) return false;
+  if (fileUrl.startsWith("/uploads/")) return false;
+  try {
+    if (/^https?:\/\//i.test(fileUrl)) {
+      const u = new URL(fileUrl);
+      // Faqat o‘z domenimizdagi /music/* static
+      if (!u.pathname.startsWith("/music/")) return false;
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return fileUrl.startsWith("/music/");
+}
+
+/**
  * Yuklangan musiqa/media faylini o‘chirish (best-effort).
- * `/music/trends/*` va boshqa static `/music/*` — o‘chirilmaydi.
+ * Static `/music/*` beds — o‘chirilmaydi.
  */
 export async function removeStoredUpload(fileUrl: string): Promise<void> {
   if (!fileUrl || isProtectedMusicUrl(fileUrl)) return;
 
-  if (
-    fileUrl.includes("blob.vercel-storage.com") ||
-    fileUrl.includes("public.blob.vercel-storage.com")
-  ) {
+  if (isBlobUrl(fileUrl)) {
     if (hasBlobStorage()) {
       await del(fileUrl);
     }
     return;
   }
 
-  if (fileUrl.startsWith("/uploads/")) {
-    const full = path.join(process.cwd(), "public", fileUrl.replace(/^\//, ""));
+  // Relativ /uploads/... yoki to‘liq URL ichidagi /uploads/...
+  let rel = fileUrl;
+  if (/^https?:\/\//i.test(fileUrl)) {
+    try {
+      rel = new URL(fileUrl).pathname;
+    } catch {
+      return;
+    }
+  }
+
+  if (rel.startsWith("/uploads/")) {
+    const full = path.join(process.cwd(), "public", rel.replace(/^\//, ""));
     const uploadsRoot = path.join(process.cwd(), "public", "uploads");
     if (!full.startsWith(uploadsRoot)) return;
     await unlink(full).catch(() => undefined);

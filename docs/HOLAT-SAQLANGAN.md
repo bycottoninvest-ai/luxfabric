@@ -118,6 +118,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Schema: `metaMediaId`, `metaPublishedAt`
 
 ### 1) Musiqa + mux
+- **Trash (O‘z kutubxonangiz):** kompyuterdan yuklangan trek DELETE → Reel `musicId` uziladi + DB row + Blob/`uploads` fayl. Blob `…/music/*.mp3` endi “protected” emas (faqat static `/music/*`). UI: darhol yo‘qoladi, xato qizil `musicMsg`. Tab unmount o‘rniga `hidden`.
 - Admin Reels → **Musiqa kutubxonasi** + o‘ngda **Instagram** yon panel:
   1. **Kompyuterdan tanlash** (NOMI / IJROCHI / MP3 + o‘z kutubxonasi + «Yaxshi — Reelga»)
   2. **URL dan** (ixtiyoriy) — faqat to‘g‘ridan-to‘g‘ri `.mp3/.m4a/.aac` yoki `Content-Type: audio/*` → `POST /api/admin/instagram/music/from-url` (`src/lib/import-audio-url.ts`)

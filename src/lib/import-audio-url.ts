@@ -170,7 +170,7 @@ export async function importDirectAudioUrl(
 
   const filename = makeUploadName(ext);
   const fileUrl = await storeUpload({
-    folder: "music",
+    folder: "audio",
     filename,
     data: buf,
     contentType: mime,

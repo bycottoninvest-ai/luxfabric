@@ -85,28 +85,23 @@ export function InstagramWorkspace({
         })}
       </div>
 
-      {tab === "reels" && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold">Reels va musiqa</h2>
-          <ReelsManager initialReels={reels} initialMusic={music} products={products} />
-        </div>
-      )}
+      {/* Tab almashtirishda unmount qilmaymiz — aks holda o‘chirilgan musiqa eski props bilan qaytib kelardi */}
+      <div className={tab === "reels" ? "block" : "hidden"}>
+        <h2 className="mb-3 text-lg font-semibold">Reels va musiqa</h2>
+        <ReelsManager initialReels={reels} initialMusic={music} products={products} />
+      </div>
 
-      {tab === "stories" && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold">Stories (hikoyalar)</h2>
-          <StoriesManager initialStories={stories} products={products} />
-        </div>
-      )}
+      <div className={tab === "stories" ? "block" : "hidden"}>
+        <h2 className="mb-3 text-lg font-semibold">Stories (hikoyalar)</h2>
+        <StoriesManager initialStories={stories} products={products} />
+      </div>
 
-      {tab === "meta" && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold">Meta / DM sozlamalari</h2>
-          <Suspense fallback={<p className="text-sm text-white/40">Yuklanmoqda…</p>}>
-            <InstagramPanel initial={metaInitial} domain={domain} products={featuredProducts} />
-          </Suspense>
-        </div>
-      )}
+      <div className={tab === "meta" ? "block" : "hidden"}>
+        <h2 className="mb-3 text-lg font-semibold">Meta / DM sozlamalari</h2>
+        <Suspense fallback={<p className="text-sm text-white/40">Yuklanmoqda…</p>}>
+          <InstagramPanel initial={metaInitial} domain={domain} products={featuredProducts} />
+        </Suspense>
+      </div>
     </div>
   );
 }
