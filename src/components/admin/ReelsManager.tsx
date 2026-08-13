@@ -88,6 +88,8 @@ type IgComment = {
   repliedAt?: string | Date | null;
 };
 type DetailTab = "edit" | "comments";
+/** Yangi Reel uchun musiqa manbasi — faqat tanlangani ishlatiladi. */
+type MusicSource = "library" | "url";
 
 function formatCommentTime(value?: string | Date | null) {
   if (!value) return "";
@@ -131,6 +133,23 @@ function pickMusicId(tracks: MusicTrack[], productName?: string): string | null 
   return tracks[0]?.id ?? null;
 }
 
+/** Instagram / Reels sahifa havolasi — audio scrape qilinmaydi. */
+function isInstagramPageUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw.trim());
+    const h = u.hostname.toLowerCase().replace(/^www\./, "");
+    const igHost =
+      h === "instagram.com" ||
+      h.endsWith(".instagram.com") ||
+      h === "cdninstagram.com" ||
+      h.endsWith(".cdninstagram.com");
+    if (!igHost) return false;
+    return true;
+  } catch {
+    return /instagram\.com\/(reel|reels|p|tv)\//i.test(raw);
+  }
+}
+
 export function ReelsManager({
   initialReels,
   initialMusic,
@@ -169,6 +188,11 @@ export function ReelsManager({
   const [musicUrl, setMusicUrl] = useState("");
   const [audioUrlInput, setAudioUrlInput] = useState("");
   const [urlImportBusy, setUrlImportBusy] = useState(false);
+  /** Kutubxona yoki URL — birlashtirish faqat shu manbadan. */
+  const [musicSource, setMusicSource] = useState<MusicSource>("library");
+  /** Faqat URL importidan kelgan trek — kutubxona tanlovi chalkashmasin. */
+  const [urlImportedMusicId, setUrlImportedMusicId] = useState<string | null>(null);
+  const [mergeBusy, setMergeBusy] = useState(false);
   const [igPanelOpen, setIgPanelOpen] = useState(true);
 
   /** Yon panel — Graph API: o‘z IG Reels + izohlar */
@@ -203,6 +227,24 @@ export function ReelsManager({
 
   const productOptions = useMemo(() => products, [products]);
   const musicTracks = useMemo(() => music, [music]);
+  const selectedLibraryTrack = useMemo(
+    () => (musicId ? musicTracks.find((m) => m.id === musicId) : undefined),
+    [musicId, musicTracks]
+  );
+  const musicSourceStatus = useMemo(() => {
+    if (musicSource === "library") {
+      return selectedLibraryTrack
+        ? `Hozir: Kutubxona — ${selectedLibraryTrack.title}`
+        : "Hozir: Kutubxona — trek tanlanmagan";
+    }
+    const url = audioUrlInput.trim();
+    if (url) return "Hozir: URL";
+    const imported = urlImportedMusicId
+      ? musicTracks.find((m) => m.id === urlImportedMusicId)
+      : undefined;
+    if (imported) return `Hozir: URL — ${imported.title}`;
+    return "Hozir: URL — havola kiritilmagan";
+  }, [musicSource, selectedLibraryTrack, audioUrlInput, urlImportedMusicId, musicTracks]);
 
   useEffect(() => {
     setMusic(initialMusic);
@@ -303,7 +345,7 @@ export function ReelsManager({
     return PUBLIC_ORIGIN;
   }
 
-  /** Mahsulot/AI matn uchun treklarni avtomatik tanlaydi. */
+  /** Mahsulot/AI matn uchun treklarni avtomatik tanlaydi — manba: Kutubxona. */
   function autoSelectMusic(forProductId?: string, opts?: { silent?: boolean }): string | null {
     const id = forProductId || productId;
     const product = id ? productOptions.find((x) => x.id === id) : undefined;
@@ -316,10 +358,11 @@ export function ReelsManager({
       }
       return null;
     }
+    setMusicSource("library");
     setMusicId(picked);
     if (!opts?.silent) {
       const track = musicTracks.find((m) => m.id === picked);
-      if (track) setMsg(`Musiqa tanlandi ✓ · ${track.title}`);
+      if (track) setMsg(`Musiqa tanlandi ✓ · ${track.title} (Kutubxona)`);
     }
     return picked;
   }
@@ -431,6 +474,7 @@ export function ReelsManager({
       setMusicUrl(url);
       setMusicTitle(title);
       const track = await addMusicToLibrary(url, title, artist);
+      setMusicSource("library");
       setMsg(`Yaxshi ✓ · «${track.title}» kutubxonaga + yangi Reelga avtomatik biriktirildi`);
       router.refresh();
     } catch (e) {
@@ -460,22 +504,35 @@ export function ReelsManager({
 
   /** Kutubxona trekini joriy yangi Reel draftiga audio sifatida biriktiradi. */
   function attachMusicToReelDraft(trackId: string, label?: string) {
+    setMusicSource("library");
     setMusicId(trackId);
     const track = musicTracks.find((m) => m.id === trackId);
     setMsg(
-      `Yaxshi ✓ · «${label || track?.title || "musiqa"}» yangi Reelga avtomatik biriktirildi`
+      `Yaxshi ✓ · «${label || track?.title || "musiqa"}» yangi Reelga biriktirildi (Kutubxona)`
     );
   }
 
   /** Faqat to‘g‘ridan-to‘g‘ri audio URL → server saqlaydi → kutubxona + Reel. */
-  async function importMusicFromUrl() {
+  async function importMusicFromUrl(opts?: {
+    manageBusy?: boolean;
+  }): Promise<MusicTrack | null> {
+    const manageBusy = opts?.manageBusy !== false;
     const url = audioUrlInput.trim();
     if (!url) {
       setMsg("❗ Audio URL kiriting (to‘g‘ridan-to‘g‘ri .mp3/.m4a/.aac)");
-      return;
+      return null;
     }
-    setUrlImportBusy(true);
-    setBusy(true);
+    if (isInstagramPageUrl(url)) {
+      setMsg(
+        "❗ Instagram havolasidan musiqa olinmaydi — kompyuter fayli yoki to‘g‘ri audio URL"
+      );
+      return null;
+    }
+    setMusicSource("url");
+    if (manageBusy) {
+      setUrlImportBusy(true);
+      setBusy(true);
+    }
     setMsg("");
     try {
       const res = await fetch("/api/admin/instagram/music/from-url", {
@@ -491,15 +548,99 @@ export function ReelsManager({
       if (!res.ok) throw new Error(data.error || "URL dan yuklab bo‘lmadi");
       setMusic((m) => [data, ...m]);
       setMusicId(data.id);
+      setUrlImportedMusicId(data.id);
       setAudioUrlInput("");
       setMusicTitle("");
       setMsg(
-        `Yaxshi ✓ · «${data.title}» URL dan kutubxonaga tushdi — yangi Reelga avtomatik biriktirildi`
+        `Yaxshi ✓ · «${data.title}» URL dan kutubxonaga tushdi — yangi Reelga biriktirildi`
       );
       router.refresh();
+      return data as MusicTrack;
     } catch (e) {
       setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ URL musiqa xatosi");
+      return null;
     } finally {
+      if (manageBusy) {
+        setUrlImportBusy(false);
+        setBusy(false);
+      }
+    }
+  }
+
+  /**
+   * Faqat tanlangan manbadan musicId (majburiy — birlashtirish tugmasi uchun).
+   * Kutubxona: musicId. URL: from-url yoki oldingi import.
+   */
+  async function resolveMusicIdForMerge(): Promise<string | null> {
+    if (musicSource === "library") {
+      if (musicId) return musicId;
+      setMsg(
+        "❗ Kutubxonadan trek tanlang («Yaxshi — Reelga») yoki «Musiqani avto tanlash»"
+      );
+      return null;
+    }
+
+    const url = audioUrlInput.trim();
+    if (url) {
+      if (isInstagramPageUrl(url)) {
+        setMsg(
+          "❗ Instagram havolasidan musiqa olinmaydi — kompyuter fayli yoki to‘g‘ri audio URL"
+        );
+        return null;
+      }
+      const track = await importMusicFromUrl({ manageBusy: false });
+      return track?.id ?? null;
+    }
+    if (urlImportedMusicId) return urlImportedMusicId;
+    setMsg("❗ URL kiriting (to‘g‘ridan-to‘g‘ri .mp3/.m4a) yoki avval URL dan import qiling");
+    return null;
+  }
+
+  /** Tanlangan manba bo‘yicha musiqa biriktirish (+ video bo‘lsa mux). */
+  async function mergeMusicIntoVideo() {
+    setMergeBusy(true);
+    setBusy(true);
+    setUrlImportBusy(musicSource === "url" && Boolean(audioUrlInput.trim()));
+    setMsg(
+      musicSource === "url"
+        ? "URL dan musiqa olinmoqda…"
+        : "Kutubxona musiqasi tayyorlanmoqda…"
+    );
+    try {
+      const resolvedId = await resolveMusicIdForMerge();
+      if (!resolvedId) return;
+
+      const track =
+        musicTracks.find((m) => m.id === resolvedId) ||
+        music.find((m) => m.id === resolvedId);
+      if (!videoUrl) {
+        setMsg(
+          `Musiqa biriktirildi ✓ · ${track?.title || "trek"} (${
+            musicSource === "library" ? "Kutubxona" : "URL"
+          }). Video yuklang — saqlashda yoki qayta bosib videoga birlashtirasiz.`
+        );
+        return;
+      }
+
+      setMsg("Musiqa videoga birlashtirilmoqda… (bir necha soniya)");
+      const res = await fetch("/api/admin/instagram/music/mux", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl, musicId: resolvedId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Birlashtirish xatosi");
+      if (typeof data.videoUrl === "string") setVideoUrl(data.videoUrl);
+      setMusicId(resolvedId);
+      const note =
+        typeof data.muxNote === "string"
+          ? data.muxNote
+          : `Musiqa videoga birlashtirildi · ${track?.title || "trek"}`;
+      setMsg(`${note} ✓ · manba: ${musicSource === "library" ? "Kutubxona" : "URL"}`);
+    } catch (e) {
+      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Birlashtirish xatosi");
+    } finally {
+      setMergeBusy(false);
       setUrlImportBusy(false);
       setBusy(false);
     }
@@ -514,18 +655,47 @@ export function ReelsManager({
       setMsg("«Sotib olish» uchun mahsulot tanlang yoki tugmani o‘chiring");
       return;
     }
-    let resolvedMusicId = musicId;
-    if (!resolvedMusicId && musicTracks.length) {
-      resolvedMusicId = pickMusicId(musicTracks, productOptions.find((p) => p.id === productId)?.name) || "";
-      if (resolvedMusicId) setMusicId(resolvedMusicId);
-    }
+
     setBusy(true);
-    setMsg(
-      resolvedMusicId
-        ? "Video + musiqa birlashtirilmoqda… (bir necha soniya)"
-        : "Reel saqlanmoqda…"
-    );
     try {
+      let musicForSave: string | null = null;
+
+      if (musicSource === "library") {
+        if (musicId) {
+          musicForSave = musicId;
+        } else if (musicTracks.length) {
+          musicForSave =
+            pickMusicId(
+              musicTracks,
+              productOptions.find((p) => p.id === productId)?.name
+            ) || null;
+          if (musicForSave) setMusicId(musicForSave);
+        }
+      } else {
+        // URL — kutubxona avto-tanlov ishlatilmaydi
+        const url = audioUrlInput.trim();
+        if (url) {
+          if (isInstagramPageUrl(url)) {
+            setMsg(
+              "❗ Instagram havolasidan musiqa olinmaydi — kompyuter fayli yoki to‘g‘ri audio URL"
+            );
+            return;
+          }
+          setMsg("URL musiqa olinmoqda…");
+          const track = await importMusicFromUrl({ manageBusy: false });
+          if (!track) return;
+          musicForSave = track.id;
+        } else if (urlImportedMusicId) {
+          musicForSave = urlImportedMusicId;
+        }
+      }
+
+      setMsg(
+        musicForSave
+          ? "Video + musiqa birlashtirilmoqda… (bir necha soniya)"
+          : "Reel saqlanmoqda…"
+      );
+
       const res = await fetch("/api/admin/instagram/reels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -533,7 +703,7 @@ export function ReelsManager({
           title,
           caption,
           videoUrl,
-          musicId: resolvedMusicId || null,
+          musicId: musicForSave || null,
           productId: showBuy ? productId || null : null,
           buyButtonLabel: buyLabel || "Sotib olish",
           showBuyButton: showBuy,
@@ -547,6 +717,8 @@ export function ReelsManager({
       setCaption("");
       setVideoUrl("");
       setMusicId("");
+      setUrlImportedMusicId(null);
+      setAudioUrlInput("");
       const mux = typeof data.muxNote === "string" ? ` · ${data.muxNote}` : "";
       setMsg(`Reel yaratildi ✓ — /instagram da chiqadi${mux}`);
       router.refresh();
@@ -859,6 +1031,7 @@ export function ReelsManager({
 
       setMusic((list) => list.filter((m) => m.id !== id));
       if (musicId === id) setMusicId("");
+      if (urlImportedMusicId === id) setUrlImportedMusicId(null);
       if (editMusicId === id) setEditMusicId("");
       setReels((list) =>
         list.map((r) =>
@@ -981,14 +1154,78 @@ export function ReelsManager({
           audio URL.
         </p>
 
+        {/* Manba tanlov + birlashtirish */}
+        <div className="space-y-3 rounded-2xl border border-lf-red/35 bg-lf-red/5 p-4 sm:p-5">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold tracking-tight sm:text-base">
+              Musiqa manbasi (Reel uchun)
+            </h3>
+            <p className="text-xs text-white/50">
+              Faqat tanlangan manba birlashtiriladi — ikkinchisi e’tiborga olinmaydi.
+            </p>
+          </div>
+          <div
+            className="inline-flex w-full max-w-md rounded-xl border border-white/15 bg-black/40 p-1"
+            role="radiogroup"
+            aria-label="Musiqa manbasi"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={musicSource === "library"}
+              onClick={() => setMusicSource("library")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                musicSource === "library"
+                  ? "bg-lf-red text-white"
+                  : "text-white/60 hover:text-white/85"
+              }`}
+            >
+              Kutubxonadan
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={musicSource === "url"}
+              onClick={() => setMusicSource("url")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                musicSource === "url"
+                  ? "bg-emerald-600 text-white"
+                  : "text-white/60 hover:text-white/85"
+              }`}
+            >
+              URL dan
+            </button>
+          </div>
+          <p className="text-xs font-medium text-white/75">{musicSourceStatus}</p>
+          <button
+            type="button"
+            disabled={busy || mergeBusy || urlImportBusy}
+            onClick={() => void mergeMusicIntoVideo()}
+            className="w-full rounded-xl bg-lf-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
+          >
+            {mergeBusy ? "Birlashtirilmoqda…" : "Musiqani videoga birlashtirish"}
+          </button>
+        </div>
+
         {/* Kompyuterdan tanlash + o‘z kutubxona */}
-        <div className="space-y-4 rounded-2xl border border-white/15 bg-white/5 p-4 sm:p-5">
+        <div
+          className={`space-y-4 rounded-2xl border p-4 sm:p-5 ${
+            musicSource === "library"
+              ? "border-lf-red/40 bg-lf-red/5"
+              : "border-white/15 bg-white/5 opacity-80"
+          }`}
+        >
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Upload className="h-5 w-5 shrink-0 text-white/80" />
               <h3 className="text-base font-bold tracking-tight sm:text-lg">
                 Kompyuterdan tanlash
               </h3>
+              {musicSource === "library" && (
+                <span className="rounded-md bg-lf-red/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-lf-red">
+                  Faol
+                </span>
+              )}
             </div>
             <p className="text-xs text-white/55 sm:pl-7">
               O‘z MP3/M4A faylingiz — kutubxonaga tushadi va Reel uchun tanlanadi.
@@ -1095,26 +1332,41 @@ export function ReelsManager({
         </div>
 
         {/* URL dan (faqat to‘g‘ridan-to‘g‘ri audio) */}
-        <div className="space-y-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-4 sm:p-5">
+        <div
+          className={`space-y-3 rounded-2xl border p-4 sm:p-5 ${
+            musicSource === "url"
+              ? "border-emerald-400/45 bg-emerald-400/10"
+              : "border-emerald-400/15 bg-emerald-400/5 opacity-80"
+          }`}
+        >
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Link2 className="h-5 w-5 shrink-0 text-emerald-300/90" />
               <h3 className="text-base font-bold tracking-tight sm:text-lg">
                 URL dan
               </h3>
+              {musicSource === "url" && (
+                <span className="rounded-md bg-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+                  Faol
+                </span>
+              )}
             </div>
             <p className="text-xs text-white/55 sm:pl-7">
-              To‘g‘ridan-to‘g‘ri audio havola (Pixabay CDN, o‘z server, Blob). YouTube / Instagram /
-              Spotify / HTML sahifa — rad etiladi.
+              To‘g‘ridan-to‘g‘ri audio havola (Pixabay CDN, o‘z server, Blob). YouTube / Instagram
+              Reels / Spotify / HTML sahifa — rad etiladi (scrape yo‘q).
             </p>
           </div>
           <label className="block space-y-1.5">
             <span className="text-xs uppercase tracking-[0.12em] text-white/45">Audio URL</span>
             <input
               value={audioUrlInput}
-              onChange={(e) => setAudioUrlInput(e.target.value)}
+              onChange={(e) => {
+                setAudioUrlInput(e.target.value);
+                setMusicSource("url");
+              }}
+              onFocus={() => setMusicSource("url")}
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-emerald-400/60 focus:ring-2"
-              placeholder="https://…/track.mp3"
+              placeholder="https://…/track.mp3 (Instagram reel link emas)"
               inputMode="url"
               autoComplete="off"
             />
@@ -1123,7 +1375,10 @@ export function ReelsManager({
             <button
               type="button"
               disabled={urlImportBusy || busy || !audioUrlInput.trim()}
-              onClick={() => void importMusicFromUrl()}
+              onClick={() => {
+                setMusicSource("url");
+                void importMusicFromUrl();
+              }}
               className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               {urlImportBusy ? "Yuklanmoqda…" : "URL dan kutubxonaga + Reelga"}
@@ -1457,28 +1712,54 @@ export function ReelsManager({
           />
         </label>
 
-        <label className="block space-y-1.5">
-          <span className="text-xs uppercase tracking-[0.12em] text-white/45">Musiqa</span>
-          <select
-            value={musicId}
-            onChange={(e) => setMusicId(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-          >
-            <option value="">
-              {musicTracks.length ? "Avtomatik (saqlashda tanlanadi)" : "Musiqa yo‘q — kutubxonaga yuklang"}
-            </option>
-            {musicTracks.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.title} — {m.artist}
+        <div className="space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs uppercase tracking-[0.12em] text-white/45">Musiqa</span>
+            <span className="text-[11px] font-medium text-white/65">{musicSourceStatus}</span>
+          </div>
+          <label className="block space-y-1.5">
+            <select
+              value={musicId}
+              onChange={(e) => {
+                setMusicId(e.target.value);
+                if (e.target.value) setMusicSource("library");
+              }}
+              disabled={musicSource === "url"}
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2 disabled:opacity-45"
+            >
+              <option value="">
+                {musicSource === "url"
+                  ? "URL manbasi faol — kutubxona select o‘chiq"
+                  : musicTracks.length
+                    ? "Avtomatik (saqlashda, faqat Kutubxona)"
+                    : "Musiqa yo‘q — kutubxonaga yuklang"}
               </option>
-            ))}
-          </select>
-          {!musicTracks.length && (
-            <p className="text-[11px] text-amber-300/80">
-              Reel uchun musiqa kerak: yuqoridagi «Musiqa kutubxonasi»ga MP3 yuklang.
+              {musicTracks.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title} — {m.artist}
+                </option>
+              ))}
+            </select>
+          </label>
+          {musicSource === "url" && (
+            <p className="text-[11px] text-emerald-200/80">
+              URL manbasi tanlangan — birlashtirish faqat audio URL / URL importidan.
             </p>
           )}
-        </label>
+          {musicSource === "library" && !musicTracks.length && (
+            <p className="text-[11px] text-amber-300/80">
+              Reel uchun musiqa: yuqoridagi kutubxonaga MP3 yuklang yoki «URL dan» ni tanlang.
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={busy || mergeBusy || urlImportBusy}
+            onClick={() => void mergeMusicIntoVideo()}
+            className="w-full rounded-xl border border-lf-red/50 bg-lf-red/15 px-3 py-2.5 text-sm font-semibold text-white hover:bg-lf-red/25 disabled:opacity-60"
+          >
+            {mergeBusy ? "Birlashtirilmoqda…" : "Musiqani videoga birlashtirish"}
+          </button>
+        </div>
 
         <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
           <label className="flex items-center gap-2 text-sm">

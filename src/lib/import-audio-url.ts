@@ -74,10 +74,17 @@ export async function importDirectAudioUrl(
   }
 
   if (hostBlocked(url.hostname)) {
+    const h = url.hostname.toLowerCase().replace(/^www\./, "");
+    const isIg =
+      h === "instagram.com" ||
+      h.endsWith(".instagram.com") ||
+      h === "cdninstagram.com" ||
+      h.endsWith(".cdninstagram.com");
     return {
       ok: false,
-      error:
-        "Bu saytdan musiqa o‘g‘irlash mumkin emas (YouTube / Instagram / Spotify va h.k.). Faqat to‘g‘ridan-to‘g‘ri .mp3/.m4a/.aac havola yoki kompyuter fayli.",
+      error: isIg
+        ? "Instagram havolasidan musiqa olinmaydi — kompyuter fayli yoki to‘g‘ri audio URL"
+        : "Bu saytdan musiqa o‘g‘irlash mumkin emas (YouTube / Spotify va h.k.). Faqat to‘g‘ridan-to‘g‘ri .mp3/.m4a/.aac havola yoki kompyuter fayli.",
       status: 400,
     };
   }

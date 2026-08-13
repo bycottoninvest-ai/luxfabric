@@ -125,6 +125,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - **Olib tashlangan:** Internet kutubxona / Trend·Xit RF UI + `GET .../music/trends` API (`trend-music.ts`). Eski RF fayllar `public/music/trends/` da qolishi mumkin (asosiy oqimda ko‘rinmaydi).
 - **Qonuniy rad:** Instagram Music Library / YouTube / Spotify / HTML sahifa scrape yoki pirate «har qanday saytdan skachat» — **yo‘q**.
 - «Yaxshi — Reelga» → `musicId` joriy yangi Reel draftiga darhol; saqlashda mux.
+- **Manba tanlov:** Kutubxonadan | URL dan + «Musiqani videoga birlashtirish» (`POST .../music/mux`) — faqat tanlangan manba; IG Reels URL scrape yo‘q.
 - Saqlashda ffmpeg → `*-mux.mp4`, `audioEmbedded` (`src/lib/mux-reel-audio.ts`; `/music/...` ham).
 
 ### 2) AI matn / AI izoh
