@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { muxVideoWithMusic } from "@/lib/mux-reel-audio";
-import { removeStoredUpload } from "@/lib/storage";
+import { deleteInstagramReel } from "@/lib/delete-instagram-reel";
 
 const include = {
   music: true,
@@ -195,44 +195,8 @@ export async function DELETE(req: Request) {
   try {
     const id = new URL(req.url).searchParams.get("id")?.trim();
     if (!id) return NextResponse.json({ error: "id kerak" }, { status: 400 });
-
-    const reel = await prisma.instagramReel.findUnique({ where: { id } });
-    // Allaqachon yo‘q — UI uchun muvaffaqiyat (idempotent)
-    if (!reel) {
-      return NextResponse.json({ ok: true, alreadyGone: true });
-    }
-
-    const videoUrl = reel.videoUrl;
-    const coverUrl = reel.coverUrl;
-    const hadMeta = Boolean(reel.metaMediaId);
-
-    /**
-     * musicId ON DELETE SET NULL (Reel → Music) — Reel o‘chganda musiqa qoladi.
-     * InstagramComment.reelId ON DELETE SET NULL — izohlarni oldindan tozalaymiz.
-     * Blob/local fayl best-effort; storage xatosi DB o‘chirishni to‘xtatmaydi.
-     */
-    await prisma.$transaction([
-      prisma.instagramComment.deleteMany({ where: { reelId: id } }),
-      prisma.instagramReel.delete({ where: { id } }),
-    ]);
-
-    const storageErrors: string[] = [];
-    for (const url of [videoUrl, coverUrl].filter(Boolean) as string[]) {
-      try {
-        await removeStoredUpload(url);
-      } catch (e) {
-        storageErrors.push(e instanceof Error ? e.message : "Fayl o‘chirilmadi");
-      }
-    }
-
-    return NextResponse.json({
-      ok: true,
-      storageErrors: storageErrors.length ? storageErrors : undefined,
-      /** Meta Graph o‘chirish yo‘q — IG da qo‘lda */
-      igNote: hadMeta
-        ? "Saytdan o‘chirildi; IG da qo‘lda o‘chiring"
-        : undefined,
-    });
+    const result = await deleteInstagramReel(id);
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Xatolik";
     return NextResponse.json({ error: message }, { status: 500 });

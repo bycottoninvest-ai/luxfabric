@@ -26,6 +26,29 @@ const PUBLIC_ORIGIN = "https://www.luxfabricshop.uz";
 const IG_PROFILE_URL = "https://www.instagram.com/luxfabric.shop/";
 const IG_HANDLE = "@luxfabric.shop";
 const SITE_REELS_PREVIEW = "/instagram";
+const REMOVED_REELS_KEY = "luxfabric-removed-reel-ids";
+
+function readRemovedReelIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(REMOVED_REELS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeRemovedReelIds(ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(REMOVED_REELS_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* ignore quota */
+  }
+}
 
 type IgFeedMedia = {
   id: string;
@@ -168,7 +191,7 @@ export function ReelsManager({
   const [deletingMusicId, setDeletingMusicId] = useState<string | null>(null);
   /** Server refresh eski props qaytarmasligi uchun lokal o‘chirilgan id lar */
   const removedMusicIdsRef = useRef<Set<string>>(new Set());
-  /** Reel o‘chirish — refresh/stale RSC qaytarib qo‘ymasligi uchun */
+  /** Reel o‘chirish — refresh/stale RSC + sessionStorage */
   const removedReelIdsRef = useRef<Set<string>>(new Set());
   const [reelMsg, setReelMsg] = useState("");
   const [deletingReelId, setDeletingReelId] = useState<string | null>(null);
@@ -265,10 +288,14 @@ export function ReelsManager({
   }, [initialMusic]);
 
   useEffect(() => {
+    // Hydration: sessionStorage dan o‘chirilgan id larni yuklash
+    const fromStore = readRemovedReelIds();
+    for (const id of fromStore) removedReelIdsRef.current.add(id);
     const removed = removedReelIdsRef.current;
     for (const id of [...removed]) {
       if (!initialReels.some((r) => r.id === id)) removed.delete(id);
     }
+    writeRemovedReelIds(removed);
     setReels(initialReels.filter((r) => !removed.has(r.id)));
   }, [initialReels]);
 
@@ -1012,7 +1039,8 @@ export function ReelsManager({
     setReelMsg("");
     setMsg("");
     removedReelIdsRef.current.add(reel.id);
-    // Darhol UI dan yo‘qoladi (refresh eski props qaytarmasligi uchun ref)
+    writeRemovedReelIds(removedReelIdsRef.current);
+    // Darhol UI dan yo‘qoladi
     setReels((list) => list.filter((r) => r.id !== reel.id));
     if (wasEditing) {
       setEditing(null);
@@ -1020,10 +1048,24 @@ export function ReelsManager({
     }
 
     try {
-      const res = await fetch(`/api/admin/instagram/reels?id=${encodeURIComponent(reel.id)}`, {
-        method: "DELETE",
+      // POST — Cloudflare/proxy ba’zan DELETE ni 405/HTML qaytaradi
+      const res = await fetch("/api/admin/instagram/reels/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ id: reel.id }),
       });
-      const data = await res.json().catch(() => ({} as { error?: string; igNote?: string }));
+      const raw = await res.text();
+      let data: { error?: string; igNote?: string; ok?: boolean } = {};
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Server javobi JSON emas"
+            : `O‘chirish xatosi (${res.status}): ${raw.slice(0, 180) || res.statusText}`
+        );
+      }
       if (!res.ok) {
         throw new Error(
           typeof data.error === "string" ? data.error : `O‘chirish xatosi (${res.status})`
@@ -1041,6 +1083,7 @@ export function ReelsManager({
       router.refresh();
     } catch (e) {
       removedReelIdsRef.current.delete(reel.id);
+      writeRemovedReelIds(removedReelIdsRef.current);
       setReels(snapshot);
       if (wasEditing) setEditing(reel);
       const errText = e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi";
