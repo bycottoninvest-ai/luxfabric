@@ -992,8 +992,8 @@ export function ReelsManager({
   }
 
   async function removeReel(reel: Reel) {
-    const ok = confirm(
-      `«${reel.title}» Reelni butunlay o‘chirasizmi?\n\nBu amalni qaytarib bo‘lmaydi. Faqat saytdan yashirish uchun «Yashirish»ni bosing.`
+    const ok = window.confirm(
+      `«${reel.title}» Reelni butunlay o‘chirasizmi?\n\nDB + video fayl o‘chadi, /instagram dan yo‘qoladi. Bu amalni qaytarib bo‘lmaydi.\nFaqat yashirish uchun «Yashirish»ni bosing.`
     );
     if (!ok) return;
     setBusy(true);
@@ -1009,7 +1009,13 @@ export function ReelsManager({
         setEditing(null);
         setComments([]);
       }
-      setMsg("Reel o‘chirildi ✓");
+      const igNote =
+        typeof data.igNote === "string" && data.igNote
+          ? data.igNote
+          : reel.metaMediaId
+            ? "Saytdan o‘chirildi; IG da qo‘lda o‘chiring"
+            : "";
+      setMsg(igNote ? `Reel o‘chirildi ✓ — ${igNote}` : "Reel o‘chirildi ✓");
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi");
@@ -1105,47 +1111,65 @@ export function ReelsManager({
           {reels.map((r) => {
             const active = editing?.id === r.id;
             return (
-              <button
+              <div
                 key={r.id}
-                type="button"
-                onClick={() => openEdit(r, "comments")}
-                className={`flex w-full gap-2 rounded-xl px-2 py-2 text-left transition ${
+                className={`flex w-full items-stretch gap-1 rounded-xl px-1 py-1 transition ${
                   active
                     ? "bg-lf-red/20 ring-1 ring-lf-red/50"
                     : "hover:bg-white/8"
                 }`}
               >
-                <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-black">
-                  {r.coverUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.coverUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <video
-                      src={r.videoUrl}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="h-full w-full object-cover"
-                    />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-medium text-white">{r.title}</div>
-                  <div className="truncate text-[10px] text-white/45">
-                    {r.product?.name || "Mahsulotsiz"}
+                <button
+                  type="button"
+                  onClick={() => openEdit(r, "comments")}
+                  className="flex min-w-0 flex-1 gap-2 rounded-xl px-1 py-1 text-left"
+                >
+                  <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-black">
+                    {r.coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.coverUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <video
+                        src={r.videoUrl}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="h-full w-full object-cover"
+                      />
+                    )}
                   </div>
-                  <div className="mt-0.5 flex flex-wrap gap-1 text-[9px]">
-                    <span
-                      className={
-                        r.isPublished ? "text-emerald-400/90" : "text-amber-300/80"
-                      }
-                    >
-                      {r.isPublished ? "Nashr" : "Qoralama"}
-                    </span>
-                    {r.metaMediaId && <span className="text-pink-300/90">· IG ✓</span>}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-white">{r.title}</div>
+                    <div className="truncate text-[10px] text-white/45">
+                      {r.product?.name || "Mahsulotsiz"}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-1 text-[9px]">
+                      <span
+                        className={
+                          r.isPublished ? "text-emerald-400/90" : "text-amber-300/80"
+                        }
+                      >
+                        {r.isPublished ? "Nashr" : "Qoralama"}
+                      </span>
+                      {r.metaMediaId && <span className="text-pink-300/90">· IG ✓</span>}
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void removeReel(r);
+                  }}
+                  className="shrink-0 self-center rounded-lg bg-rose-500/15 p-2 text-rose-300 hover:bg-rose-500/25 disabled:opacity-50"
+                  aria-label={`${r.title} ni o‘chirish`}
+                  title="Butunlay o‘chirish"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             );
           })}
         </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { muxVideoWithMusic } from "@/lib/mux-reel-audio";
+import { removeStoredUpload } from "@/lib/storage";
 
 const include = {
   music: true,
@@ -192,10 +193,41 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const id = new URL(req.url).searchParams.get("id");
+    const id = new URL(req.url).searchParams.get("id")?.trim();
     if (!id) return NextResponse.json({ error: "id kerak" }, { status: 400 });
-    await prisma.instagramReel.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
+
+    const reel = await prisma.instagramReel.findUnique({ where: { id } });
+    // Allaqachon yo‘q — UI uchun muvaffaqiyat (idempotent)
+    if (!reel) {
+      return NextResponse.json({ ok: true, alreadyGone: true });
+    }
+
+    const videoUrl = reel.videoUrl;
+    const coverUrl = reel.coverUrl;
+    const hadMeta = Boolean(reel.metaMediaId);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.instagramComment.deleteMany({ where: { reelId: id } });
+      await tx.instagramReel.delete({ where: { id } });
+    });
+
+    const storageErrors: string[] = [];
+    for (const url of [videoUrl, coverUrl].filter(Boolean) as string[]) {
+      try {
+        await removeStoredUpload(url);
+      } catch (e) {
+        storageErrors.push(e instanceof Error ? e.message : "Fayl o‘chirilmadi");
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      storageErrors: storageErrors.length ? storageErrors : undefined,
+      /** Meta Graph o‘chirish yo‘q — IG da qo‘lda */
+      igNote: hadMeta
+        ? "Saytdan o‘chirildi; IG da qo‘lda o‘chiring"
+        : undefined,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Xatolik" },
