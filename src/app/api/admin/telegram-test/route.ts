@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notifyDirector } from "@/lib/notify";
-import { getSetting } from "@/lib/settings";
+import { sendOrderNotification, telegramOrdersConfigured } from "@/lib/telegram-orders";
 
-/** Direktor Telegram xabarini test qilish */
+/** Oxirgi buyurtma bo‘yicha Telegram test xabari */
 export async function POST() {
-  const botToken = await getSetting("telegram_bot_token");
-  const chat = await getSetting("telegram_director_chat_id");
-  if (!botToken || !chat) {
+  const cfg = await telegramOrdersConfigured();
+  if (!cfg.hasToken || !cfg.hasChat) {
     return NextResponse.json(
       {
         error:
-          "Avval Sozlamalarda telegram_bot_token va telegram_director_chat_id ni saqlang",
+          "Avval Sozlamalarda telegram_bot_token va chat ID ni saqlang (yoki Vercel TELEGRAM_BOT_TOKEN / TELEGRAM_ORDERS_CHAT_ID)",
       },
       { status: 400 }
     );
@@ -25,11 +23,16 @@ export async function POST() {
     return NextResponse.json({ error: "Test uchun kamida 1 ta buyurtma kerak" }, { status: 400 });
   }
 
-  const result = await notifyDirector({
-    orderId: order.id,
-    event: "NEW",
+  const result = await sendOrderNotification(order.id, {
     statusNote: "TEST xabar — sozlamalar tekshiruvi",
   });
 
-  return NextResponse.json({ ok: true, orderNumber: order.orderNumber, result });
+  if (result.skipped && result.skipped !== "disabled") {
+    return NextResponse.json(
+      { error: `Yuborilmadi: ${result.skipped}`, result },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json({ ok: true, orderNumber: order.orderNumber, result, configured: cfg });
 }

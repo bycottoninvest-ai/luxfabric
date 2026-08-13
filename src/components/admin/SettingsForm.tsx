@@ -5,9 +5,12 @@ import { useState } from "react";
 export function SettingsForm({
   initial,
   smsConfigured = false,
+  telegramConfigured = false,
 }: {
   initial: Record<string, string>;
   smsConfigured?: boolean;
+  /** Token + chat + yoqilgan */
+  telegramConfigured?: boolean;
 }) {
   const [form, setForm] = useState(initial);
   const [msg, setMsg] = useState("");
@@ -161,11 +164,26 @@ export function SettingsForm({
           </button>
         </div>
 
+        <div
+          className={`rounded-xl border px-3 py-2 text-sm ${
+            telegramConfigured
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              : "border-amber-500/40 bg-amber-500/10 text-amber-200"
+          }`}
+        >
+          Telegram buyurtmalar:{" "}
+          {telegramConfigured ? "sozlangan ✓" : "sozlanmagan — token + chat ID kerak"}
+        </div>
         {field("telegram_bot_token", "Telegram Bot Token", "BotFather: /newbot", "password")}
         {field(
           "telegram_director_chat_id",
-          "Direktor Chat ID",
-          "Botga /start yozing → chat id (bir nechta bo‘lsa vergul bilan). Masalan: 123456789"
+          "Buyurtmalar Chat ID",
+          "Botga /start → chat id (bir nechta: vergul). Env: TELEGRAM_ORDERS_CHAT_ID"
+        )}
+        {field(
+          "telegram_orders_chat_id",
+          "Buyurtmalar Chat ID (ixtiyoriy alias)",
+          "Bo‘sh qoldirilsa yuqoridagi Direktor/Chat ID ishlatiladi"
         )}
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -175,16 +193,22 @@ export function SettingsForm({
               setForm({ ...form, telegram_director_enabled: e.target.checked ? "true" : "false" })
             }
           />
-          Direktor Telegram xabarlarini yoqish
+          Telegram buyurtma xabarlarini yoqish
         </label>
         <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-lf-muted space-y-1">
-          <p>1) @BotFather dan bot oling → token shu yerga</p>
-          <p>2) Botga direktor akkauntidan /start bosing</p>
+          <p>1) @BotFather → /newbot → token shu yerga yoki Vercel TELEGRAM_BOT_TOKEN</p>
+          <p>2) Botga admin akkauntdan /start</p>
           <p>
-            3) Chat ID: brauzerda oching{" "}
+            3) Chat ID:{" "}
             <code className="text-white/80">https://api.telegram.org/botTOKEN/getUpdates</code>
           </p>
-          <p>4) message.chat.id ni «Direktor Chat ID» ga yozing → Saqlash</p>
+          <p>4) Webhook (production): docs/TELEGRAM-BOT-ULASH.md</p>
+          <p>
+            Webhook URL:{" "}
+            <code className="text-white/80">
+              https://www.luxfabricshop.uz/api/telegram/webhook
+            </code>
+          </p>
         </div>
       </section>
 
@@ -211,13 +235,13 @@ export function SettingsForm({
           setLoading(false);
           setMsg(
             res.ok
-              ? `Direktor test xabari yuborildi (${data.orderNumber}) ✓`
+              ? `Telegram test xabari yuborildi (${data.orderNumber}) ✓`
               : data.error || "Test xatosi"
           );
         }}
         className="ml-2 rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold disabled:opacity-60"
       >
-        Direktor Telegram test
+        Telegram buyurtma test
       </button>
       {msg && <p className="text-sm text-emerald-400">{msg}</p>}
     </form>

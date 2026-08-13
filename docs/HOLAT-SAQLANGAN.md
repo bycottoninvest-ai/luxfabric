@@ -183,6 +183,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 | Build | `scripts/build.mjs` |
 | Env namuna | `.env.example` |
 | Neon qo‘llanma | `docs/VERCEL-DEPLOY.md` |
+| Telegram bot | `docs/TELEGRAM-BOT-ULASH.md`, `src/lib/telegram-orders.ts`, `/api/telegram/webhook` |
 
 ---
 
@@ -225,6 +226,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - [ ] To‘liq WB: Q&A, “faqat xarid qilganlar”, video-sharh
 - [x] Yetkazish strategiyasi hujjati + checkout/tracking ETA (`docs/YETKAZISH-STRATEGIYA.md`)
 - [x] Buyurtma kuzatish maxfiyligi (telefon + device token; LF yolg‘iz yetarli emas)
+- [x] Telegram bot buyurtmalar: avto xabar + rasmlar + QR + inline status + editMessage (`docs/TELEGRAM-BOT-ULASH.md`)
 
 ---
 

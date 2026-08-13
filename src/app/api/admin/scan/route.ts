@@ -73,6 +73,7 @@ export async function POST(req: Request) {
       });
       if (!order) return NextResponse.json({ error: "Buyurtma topilmadi" }, { status: 404 });
 
+      const prevOpenStatus = order.status;
       if (order.status === "NEW" || order.status === "PAID") {
         await prisma.order.update({
           where: { id: order.id },
@@ -99,6 +100,26 @@ export async function POST(req: Request) {
           note: `Buyurtma ochildi: ${order.orderNumber}`,
         },
       });
+
+      if (order.status === "PICKING" && prevOpenStatus !== "PICKING") {
+        try {
+          const { syncTelegramOrderMessage } = await import("@/lib/telegram-orders");
+          await syncTelegramOrderMessage(order.id, {
+            statusNote: "QR skaner: yig‘ish boshlandi",
+          });
+        } catch (e) {
+          console.error("[SCAN] telegram sync open", e);
+        }
+        try {
+          await notifyOrderStatus({
+            orderId: order.id,
+            status: "PICKING",
+            prevStatus: prevOpenStatus,
+          });
+        } catch (e) {
+          console.error("[SCAN] customer notify open", e);
+        }
+      }
 
       return NextResponse.json({
         ok: true,
@@ -291,6 +312,15 @@ export async function POST(req: Request) {
           console.error("[SCAN] customer notify", e);
         }
       } else if (result.order.status === "PICKING" && result.prevStatus !== "PICKING") {
+        try {
+          await notifyDirector({
+            orderId: result.order.id,
+            event: "STATUS",
+            statusNote: "QR skaner: yig‘ilmoqda",
+          });
+        } catch (e) {
+          console.error("[SCAN] director notify picking", e);
+        }
         try {
           await notifyOrderStatus({
             orderId: result.order.id,
