@@ -72,6 +72,8 @@ export async function GET(req: Request) {
       ...(igUserId ? { instagram_ig_user_id: igUserId } : {}),
       instagram_username: "luxfabric.shop",
       app_domain: "https://www.luxfabricshop.uz",
+      // Reels publish uchun majburiy — OAuth muvaffaqiyatida avtomatik yoqiladi
+      instagram_enabled: "true",
     });
 
     return redirectAdmin("ok", true);
