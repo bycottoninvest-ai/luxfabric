@@ -1,5 +1,5 @@
-import { put } from "@vercel/blob";
-import { mkdir, writeFile } from "fs/promises";
+import { del, put } from "@vercel/blob";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { randomBytes } from "crypto";
 
@@ -37,4 +37,39 @@ export async function storeUpload(opts: {
 
 export function makeUploadName(ext: string): string {
   return `${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`;
+}
+
+/** Trend/RF static beds — DB dan o‘chirish mumkin, diskdagi fayl himoyalangan. */
+export function isProtectedMusicUrl(fileUrl: string): boolean {
+  if (!fileUrl) return false;
+  return (
+    fileUrl.includes("/music/trends/") ||
+    fileUrl.startsWith("/music/") ||
+    /\/music\/[^/]+\.(mp3|m4a|aac|wav)(\?|$)/i.test(fileUrl)
+  );
+}
+
+/**
+ * Yuklangan musiqa/media faylini o‘chirish (best-effort).
+ * `/music/trends/*` va boshqa static `/music/*` — o‘chirilmaydi.
+ */
+export async function removeStoredUpload(fileUrl: string): Promise<void> {
+  if (!fileUrl || isProtectedMusicUrl(fileUrl)) return;
+
+  if (
+    fileUrl.includes("blob.vercel-storage.com") ||
+    fileUrl.includes("public.blob.vercel-storage.com")
+  ) {
+    if (hasBlobStorage()) {
+      await del(fileUrl);
+    }
+    return;
+  }
+
+  if (fileUrl.startsWith("/uploads/")) {
+    const full = path.join(process.cwd(), "public", fileUrl.replace(/^\//, ""));
+    const uploadsRoot = path.join(process.cwd(), "public", "uploads");
+    if (!full.startsWith(uploadsRoot)) return;
+    await unlink(full).catch(() => undefined);
+  }
 }

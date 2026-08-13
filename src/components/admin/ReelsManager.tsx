@@ -744,11 +744,43 @@ export function ReelsManager({
   }
 
   async function removeMusic(id: string) {
-    if (!confirm("Musiani o‘chirasizmi?")) return;
-    const res = await fetch(`/api/admin/instagram/music?id=${id}`, { method: "DELETE" });
-    if (res.ok) {
+    const track = music.find((m) => m.id === id);
+    const usedBy =
+      track?._count?.reels ?? reels.filter((r) => r.musicId === id).length;
+    const label = track ? `«${track.title}»` : "Musiqa";
+    const hint =
+      usedBy > 0
+        ? `\n\n${usedBy} ta Reelda ishlatilgan — bog‘lanish uziladi, trek kutubxonadan o‘chadi.`
+        : "";
+    if (!confirm(`${label} ni o‘chirasizmi?${hint}`)) return;
+
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch(
+        `/api/admin/instagram/music?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "O‘chirish xatosi");
+
       setMusic((list) => list.filter((m) => m.id !== id));
       if (musicId === id) setMusicId("");
+      if (editMusicId === id) setEditMusicId("");
+      setReels((list) =>
+        list.map((r) =>
+          r.musicId === id ? { ...r, musicId: null, music: null } : r
+        )
+      );
+      if (editing?.musicId === id) {
+        setEditing({ ...editing, musicId: null, music: null });
+      }
+      setMsg(`${label} o‘chirildi ✓`);
+      router.refresh();
+    } catch (e) {
+      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -954,8 +986,11 @@ export function ReelsManager({
                     </button>
                     <button
                       type="button"
-                      onClick={() => removeMusic(m.id)}
-                      className="rounded-lg bg-white/10 p-2"
+                      disabled={busy}
+                      onClick={() => void removeMusic(m.id)}
+                      className="rounded-lg bg-white/10 p-2 disabled:opacity-50"
+                      aria-label={`${m.title} ni o‘chirish`}
+                      title="Kutubxonadan o‘chirish"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

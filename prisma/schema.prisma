@@ -322,7 +322,7 @@ model InstagramReel {
   metaMediaId    String?
   metaPublishedAt DateTime?
   musicId        String?
-  music          InstagramMusic? @relation(fields: [musicId], references: [id])
+  music          InstagramMusic? @relation(fields: [musicId], references: [id], onDelete: SetNull)
   productId      String?
   product        Product?        @relation(fields: [productId], references: [id])
   comments       InstagramComment[]
