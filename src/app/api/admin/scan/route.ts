@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseQrPayload, encodeSkuQr, encodeOrderQr } from "@/lib/qr";
-import { notifyDirector } from "@/lib/notify";
+import { notifyDirector, notifyOrderStatus } from "@/lib/notify";
 
 const schema = z.object({
   code: z.string().min(1),
@@ -263,6 +263,7 @@ export async function POST(req: Request) {
 
         return {
           order: { ...order, status, items: freshItems },
+          prevStatus: order.status,
           item: updatedItem,
           allDone,
           stockLeft: stockRow?.quantity ?? 0,
@@ -271,11 +272,34 @@ export async function POST(req: Request) {
       });
 
       if (result.allDone) {
-        await notifyDirector({
-          orderId: result.order.id,
-          event: "PACKED",
-          statusNote: "QR skaner orqali to‘liq yig‘ildi",
-        });
+        try {
+          await notifyDirector({
+            orderId: result.order.id,
+            event: "PACKED",
+            statusNote: "QR skaner orqali to‘liq yig‘ildi",
+          });
+        } catch (e) {
+          console.error("[SCAN] director notify", e);
+        }
+        try {
+          await notifyOrderStatus({
+            orderId: result.order.id,
+            status: "PACKED",
+            prevStatus: result.prevStatus,
+          });
+        } catch (e) {
+          console.error("[SCAN] customer notify", e);
+        }
+      } else if (result.order.status === "PICKING" && result.prevStatus !== "PICKING") {
+        try {
+          await notifyOrderStatus({
+            orderId: result.order.id,
+            status: "PICKING",
+            prevStatus: result.prevStatus,
+          });
+        } catch (e) {
+          console.error("[SCAN] customer notify picking", e);
+        }
       }
 
       return NextResponse.json({

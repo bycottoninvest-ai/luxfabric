@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS } from "@/lib/utils";
-import { notifyDirector } from "@/lib/notify";
+import { notifyDirector, notifyOrderStatus } from "@/lib/notify";
 import {
   eventTitleForStatus,
   normalizeStatus,
@@ -85,12 +85,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "status yoki warehouseId kerak" }, { status: 400 });
     }
 
+    let prevStatus: string | null = null;
     const order = await prisma.$transaction(async (tx) => {
       const current = await tx.order.findUnique({
         where: { id },
         include: { items: true },
       });
       if (!current) throw new Error("Buyurtma topilmadi");
+      prevStatus = current.status;
 
       const nextTracking =
         body.courierTracking !== undefined
@@ -202,7 +204,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       statusNote: body.note,
     });
 
-    return NextResponse.json({ ...order, director });
+    let customerNotify: Awaited<ReturnType<typeof notifyOrderStatus>> | undefined;
+    try {
+      customerNotify = await notifyOrderStatus({
+        orderId: order.id,
+        status: order.status,
+        prevStatus,
+      });
+    } catch (e) {
+      console.error("[ORDER-PATCH] customer notify", e);
+    }
+
+    return NextResponse.json({ ...order, director, customerNotify });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Xatolik" },

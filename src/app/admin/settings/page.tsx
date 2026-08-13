@@ -1,5 +1,6 @@
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "@/components/admin/SettingsForm";
+import { isSmsConfigured } from "@/lib/sms";
 
 export default async function AdminSettingsPage() {
   const settings = await getSettings([
@@ -14,8 +15,6 @@ export default async function AdminSettingsPage() {
     "telegram_bot_token",
     "telegram_director_chat_id",
     "telegram_director_enabled",
-    "sms_api_key",
-    "sms_sender",
     "click_merchant_id",
     "click_service_id",
     "click_secret_key",
@@ -30,7 +29,7 @@ export default async function AdminSettingsPage() {
           Domen, Instagram va to‘lov — hammasi admin orqali. Real ishga tayyor.
         </p>
       </div>
-      <SettingsForm initial={settings} />
+      <SettingsForm initial={settings} smsConfigured={isSmsConfigured()} />
     </div>
   );
 }

@@ -2,10 +2,17 @@
 
 import { useState } from "react";
 
-export function SettingsForm({ initial }: { initial: Record<string, string> }) {
+export function SettingsForm({
+  initial,
+  smsConfigured = false,
+}: {
+  initial: Record<string, string>;
+  smsConfigured?: boolean;
+}) {
   const [form, setForm] = useState(initial);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -102,11 +109,58 @@ export function SettingsForm({ initial }: { initial: Record<string, string> }) {
       <section className="rounded-2xl border border-white/10 bg-lf-card p-4 space-y-3">
         <h2 className="font-semibold">SMS va Telegram</h2>
         <p className="text-xs text-lf-muted">
-          Mijozga SMS/Telegram + direktor botiga har bir buyurtma (to‘langan/to‘lanmagan, rasm, telefon,
-          manzil, statistika).
+          Mijozga SMS/Telegram + direktor botiga har bir buyurtma. SMS kalitlari Vercel env orqali
+          (Eskiz) — UI da ko‘rsatilmaydi.{" "}
+          <span className="text-white/70">docs/SMS-ULASH.md</span>
         </p>
-        {field("sms_api_key", "SMS API key (Eskiz / Playmobile)", undefined, "password")}
-        {field("sms_sender", "SMS sender nomi", "Masalan: LUXFABRIC")}
+
+        <div
+          className={`rounded-xl border px-3 py-2.5 text-sm ${
+            smsConfigured
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              : "border-amber-500/40 bg-amber-500/10 text-amber-200"
+          }`}
+        >
+          SMS holati: {smsConfigured ? "sozlangan" : "yo‘q"}
+          {!smsConfigured && (
+            <span className="mt-1 block text-xs text-lf-muted">
+              Vercel: SMS_PROVIDER=eskiz, ESKIZ_EMAIL, ESKIZ_PASSWORD, ESKIZ_FROM
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block min-w-[200px] flex-1 space-y-1.5">
+            <span className="text-xs uppercase tracking-[0.12em] text-lf-muted">Test telefon</span>
+            <input
+              type="tel"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+              placeholder="+998 XX XXX XX XX"
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={loading || !testPhone.trim()}
+            onClick={async () => {
+              setLoading(true);
+              setMsg("");
+              const res = await fetch("/api/admin/sms-test", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone: testPhone }),
+              });
+              const data = await res.json().catch(() => ({}));
+              setLoading(false);
+              setMsg(res.ok ? `Test SMS yuborildi (${data.phone}) ✓` : data.error || "SMS test xatosi");
+            }}
+            className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+          >
+            Test SMS
+          </button>
+        </div>
+
         {field("telegram_bot_token", "Telegram Bot Token", "BotFather: /newbot", "password")}
         {field(
           "telegram_director_chat_id",

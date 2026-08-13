@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { notifyDirector } from "@/lib/notify";
+import { notifyDirector, notifyOrderStatus } from "@/lib/notify";
 import {
   ClickError,
   amountsMatch,
@@ -139,8 +139,8 @@ export async function handleClickWebhook(req: Request, forcedAction?: 0 | 1) {
     return fail(body, ClickError.TransactionCanceled, body.error_note || "Payment failed");
   }
 
+  const advanceToPaid = order.status === "NEW";
   try {
-    const advanceToPaid = order.status === "NEW";
     await prisma.$transaction([
       prisma.order.update({
         where: { id: order.id },
@@ -168,6 +168,18 @@ export async function handleClickWebhook(req: Request, forcedAction?: 0 | 1) {
     await notifyDirector({ orderId: order.id, event: "STATUS", statusNote: "Click: PAID" });
   } catch (e) {
     console.error("[CLICK] director notify", e);
+  }
+
+  if (advanceToPaid) {
+    try {
+      await notifyOrderStatus({
+        orderId: order.id,
+        status: "PAID",
+        prevStatus: order.status,
+      });
+    } catch (e) {
+      console.error("[CLICK] customer notify", e);
+    }
   }
 
   return okComplete(body, prepareId);

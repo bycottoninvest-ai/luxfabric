@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { notifyDirector, notifyOrderStatus } from "@/lib/notify";
 
 const schema = z.object({
   courierId: z.string(),
@@ -30,6 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Trek-kod majburiy" }, { status: 400 });
     }
 
+    const prevStatus = order.status;
     const updated = await prisma.order.update({
       where: { id },
       data: {
@@ -51,6 +53,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
       include: { courier: true, warehouse: true },
     });
+
+    try {
+      await notifyDirector({
+        orderId: updated.id,
+        event: "STATUS",
+        statusNote: `${courier.nameUz} · Trek: ${tracking}`,
+      });
+    } catch (e) {
+      console.error("[HANDOVER] director notify", e);
+    }
+
+    try {
+      await notifyOrderStatus({
+        orderId: updated.id,
+        status: "SHIPPED",
+        prevStatus,
+      });
+    } catch (e) {
+      console.error("[HANDOVER] customer notify", e);
+    }
 
     return NextResponse.json({
       ok: true,
