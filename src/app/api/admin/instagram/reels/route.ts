@@ -206,10 +206,15 @@ export async function DELETE(req: Request) {
     const coverUrl = reel.coverUrl;
     const hadMeta = Boolean(reel.metaMediaId);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.instagramComment.deleteMany({ where: { reelId: id } });
-      await tx.instagramReel.delete({ where: { id } });
-    });
+    /**
+     * musicId ON DELETE SET NULL (Reel → Music) — Reel o‘chganda musiqa qoladi.
+     * InstagramComment.reelId ON DELETE SET NULL — izohlarni oldindan tozalaymiz.
+     * Blob/local fayl best-effort; storage xatosi DB o‘chirishni to‘xtatmaydi.
+     */
+    await prisma.$transaction([
+      prisma.instagramComment.deleteMany({ where: { reelId: id } }),
+      prisma.instagramReel.delete({ where: { id } }),
+    ]);
 
     const storageErrors: string[] = [];
     for (const url of [videoUrl, coverUrl].filter(Boolean) as string[]) {
@@ -229,9 +234,7 @@ export async function DELETE(req: Request) {
         : undefined,
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Xatolik" },
-      { status: 400 }
-    );
+    const message = err instanceof Error ? err.message : "Xatolik";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

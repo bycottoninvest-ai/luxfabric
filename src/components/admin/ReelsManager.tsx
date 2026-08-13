@@ -168,6 +168,10 @@ export function ReelsManager({
   const [deletingMusicId, setDeletingMusicId] = useState<string | null>(null);
   /** Server refresh eski props qaytarmasligi uchun lokal o‘chirilgan id lar */
   const removedMusicIdsRef = useRef<Set<string>>(new Set());
+  /** Reel o‘chirish — refresh/stale RSC qaytarib qo‘ymasligi uchun */
+  const removedReelIdsRef = useRef<Set<string>>(new Set());
+  const [reelMsg, setReelMsg] = useState("");
+  const [deletingReelId, setDeletingReelId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [chatgpt, setChatgpt] = useState<{ configured: boolean; model: string | null } | null>(null);
@@ -261,7 +265,11 @@ export function ReelsManager({
   }, [initialMusic]);
 
   useEffect(() => {
-    setReels(initialReels);
+    const removed = removedReelIdsRef.current;
+    for (const id of [...removed]) {
+      if (!initialReels.some((r) => r.id === id)) removed.delete(id);
+    }
+    setReels(initialReels.filter((r) => !removed.has(r.id)));
   }, [initialReels]);
 
   useEffect(() => {
@@ -996,18 +1004,30 @@ export function ReelsManager({
       `«${reel.title}» Reelni butunlay o‘chirasizmi?\n\nDB + video fayl o‘chadi, /instagram dan yo‘qoladi. Bu amalni qaytarib bo‘lmaydi.\nFaqat yashirish uchun «Yashirish»ni bosing.`
     );
     if (!ok) return;
+
+    const snapshot = reels;
+    const wasEditing = editing?.id === reel.id;
+    setDeletingReelId(reel.id);
     setBusy(true);
+    setReelMsg("");
     setMsg("");
+    removedReelIdsRef.current.add(reel.id);
+    // Darhol UI dan yo‘qoladi (refresh eski props qaytarmasligi uchun ref)
+    setReels((list) => list.filter((r) => r.id !== reel.id));
+    if (wasEditing) {
+      setEditing(null);
+      setComments([]);
+    }
+
     try {
       const res = await fetch(`/api/admin/instagram/reels?id=${encodeURIComponent(reel.id)}`, {
         method: "DELETE",
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "O‘chirish xatosi");
-      setReels((list) => list.filter((r) => r.id !== reel.id));
-      if (editing?.id === reel.id) {
-        setEditing(null);
-        setComments([]);
+      const data = await res.json().catch(() => ({} as { error?: string; igNote?: string }));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : `O‘chirish xatosi (${res.status})`
+        );
       }
       const igNote =
         typeof data.igNote === "string" && data.igNote
@@ -1015,11 +1035,20 @@ export function ReelsManager({
           : reel.metaMediaId
             ? "Saytdan o‘chirildi; IG da qo‘lda o‘chiring"
             : "";
-      setMsg(igNote ? `Reel o‘chirildi ✓ — ${igNote}` : "Reel o‘chirildi ✓");
+      const okText = igNote ? `Reel o‘chirildi ✓ — ${igNote}` : "Reel o‘chirildi ✓";
+      setReelMsg(okText);
+      setMsg(okText);
       router.refresh();
     } catch (e) {
-      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi");
+      removedReelIdsRef.current.delete(reel.id);
+      setReels(snapshot);
+      if (wasEditing) setEditing(reel);
+      const errText = e instanceof Error ? `❗ ${e.message}` : "❗ O‘chirish xatosi";
+      setReelMsg(errText);
+      setMsg(errText);
+      window.alert(errText.replace(/^❗\s*/, ""));
     } finally {
+      setDeletingReelId(null);
       setBusy(false);
     }
   }
@@ -1104,12 +1133,23 @@ export function ReelsManager({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
+        {reelMsg && (
+          <p
+            className={`border-b border-white/10 px-3 py-2 text-[11px] leading-snug ${
+              reelMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"
+            }`}
+            role="status"
+          >
+            {reelMsg}
+          </p>
+        )}
         <div className="flex-1 space-y-1 overflow-y-auto p-2">
           {reels.length === 0 && (
             <p className="px-2 py-4 text-[11px] text-white/40">Hali Reel yo‘q</p>
           )}
           {reels.map((r) => {
             const active = editing?.id === r.id;
+            const deleting = deletingReelId === r.id;
             return (
               <div
                 key={r.id}
@@ -1157,7 +1197,7 @@ export function ReelsManager({
                 </button>
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || deleting}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1924,6 +1964,14 @@ export function ReelsManager({
 
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
         <h2 className="font-semibold">Reels ro‘yxati ({reels.length})</h2>
+        {reelMsg && (
+          <p
+            className={`text-sm ${reelMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}
+            role="status"
+          >
+            {reelMsg}
+          </p>
+        )}
         {reels.length === 0 && <p className="text-xs text-white/40">Hali Reel yo‘q — yuqoridan yarating.</p>}
         {reels.map((r) => (
           <div key={r.id} className="rounded-xl border border-white/5 p-3 space-y-2">
@@ -1988,13 +2036,17 @@ export function ReelsManager({
                 </button>
                 <button
                   type="button"
-                  disabled={busy}
-                  onClick={() => removeReel(r)}
+                  disabled={busy || deletingReelId === r.id}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void removeReel(r);
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/25 disabled:opacity-50"
                   title="Butunlay o‘chirish"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  O‘chirish
+                  {deletingReelId === r.id ? "O‘chirilmoqda…" : "O‘chirish"}
                 </button>
               </div>
             </div>
