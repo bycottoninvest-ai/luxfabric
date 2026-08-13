@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatSom } from "@/lib/utils";
+import { ClearStockButton } from "@/components/admin/ClearStockButton";
 import { WarehouseManager } from "@/components/admin/WarehouseManager";
 
 export default async function AdminWarehousePage() {
@@ -69,13 +70,16 @@ export default async function AdminWarehousePage() {
 
   return (
     <div className="space-y-6 pb-16">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">
-          Viloyatlar va omborlar
-        </h1>
-        <p className="mt-1 text-sm text-lf-muted">
-          Har viloyatdagi pul summasi · yuqoridagi itogi = barcha viloyatlar yig‘indisi
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">
+            Viloyatlar va omborlar
+          </h1>
+          <p className="mt-1 text-sm text-lf-muted">
+            Har viloyatdagi pul summasi · yuqoridagi itogi = barcha viloyatlar yig‘indisi
+          </p>
+        </div>
+        <ClearStockButton />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
