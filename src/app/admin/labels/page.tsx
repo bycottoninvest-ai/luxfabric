@@ -3,6 +3,7 @@ import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS, formatSom } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
+import { ClearSavedCardsPanel } from "@/components/admin/ClearSavedCardsPanel";
 
 /** Buyurtmalar ro‘yxati — ism, to‘liq ma’lumot, model rasmi. Ichiga kirganda QR. */
 export default async function AdminLabelsPage() {
@@ -22,6 +23,10 @@ export default async function AdminLabelsPage() {
     },
   });
 
+  const savedCards = orders
+    .filter((o) => o.cardSavedAt)
+    .map((o) => ({ orderNumber: o.orderNumber, customerName: o.customerName }));
+
   return (
     <div className="space-y-6 pb-20 text-white">
       <div>
@@ -31,24 +36,7 @@ export default async function AdminLabelsPage() {
         </p>
       </div>
 
-      {orders.some((o) => o.cardSavedAt) && (
-        <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-          <h2 className="mb-2 text-sm font-semibold text-emerald-300">Saqlangan kartochkalar</h2>
-          <div className="flex flex-wrap gap-2">
-            {orders
-              .filter((o) => o.cardSavedAt)
-              .map((o) => (
-                <Link
-                  key={o.id}
-                  href={`/card/${o.orderNumber}`}
-                  className="rounded-xl border border-emerald-500/20 bg-black/30 px-3 py-2 text-xs"
-                >
-                  {o.customerName} · {o.orderNumber}
-                </Link>
-              ))}
-          </div>
-        </section>
-      )}
+      <ClearSavedCardsPanel cards={savedCards} />
 
       {orders.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/50">
