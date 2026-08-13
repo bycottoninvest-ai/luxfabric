@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { Upload } from "lucide-react";
 import { PRODUCT_CATEGORIES, GENDER_LABEL } from "@/lib/product-options";
+import { uploadAdminMedia } from "@/lib/client-upload";
 
 type SizeLine = {
   variantId: string;
@@ -59,6 +61,8 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
     for (const s of product.sizes) m[s.variantId] = String(s.quantity);
     return m;
   });
+  const [imageUrl, setImageUrl] = useState(product.imageUrl);
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stockBusy, setStockBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -105,6 +109,7 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
           status,
           categorySlug,
           featured,
+          ...(imageUrl && imageUrl !== product.imageUrl ? { imageUrl } : {}),
         }),
       });
       const data = await res.json();
@@ -115,6 +120,21 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
       setError(err instanceof Error ? err.message : "Xatolik");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function uploadImage(file: File) {
+    setUploading(true);
+    setError("");
+    setMsg("");
+    try {
+      const url = await uploadAdminMedia(file, "image", "products");
+      setImageUrl(url);
+      setMsg("Rasm yuklandi — «Ma’lumotni saqlash» ni bosing");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rasm yuklash xatosi");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -199,14 +219,32 @@ export function ProductEditForm({ product }: { product: ProductEdit }) {
         </Link>
       </div>
 
-      {product.imageUrl && (
-        <div className="relative h-28 w-24 overflow-hidden rounded-xl border border-white/10 bg-lf-surface">
-          <Image src={product.imageUrl} alt={product.name} fill className="object-cover" sizes="96px" />
-        </div>
-      )}
-
       <form onSubmit={saveProduct} className="space-y-4 rounded-2xl border border-white/10 bg-lf-card p-5">
         <h2 className="font-semibold">Asosiy ma’lumot</h2>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="relative h-28 w-24 overflow-hidden rounded-xl border border-white/10 bg-lf-surface">
+            {imageUrl ? (
+              <Image src={imageUrl} alt={name || product.name} fill className="object-cover" sizes="96px" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-[10px] text-lf-muted">Rasm yo‘q</div>
+            )}
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
+            <Upload className="h-4 w-4" />
+            {uploading ? "Yuklanmoqda…" : "Rasm almashtirish"}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadImage(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
         <label className="block space-y-1.5">
           <span className="text-xs uppercase tracking-[0.12em] text-lf-muted">Nomi</span>
           <input

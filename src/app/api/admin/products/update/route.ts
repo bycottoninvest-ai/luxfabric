@@ -30,6 +30,8 @@ const schema = z.object({
     })
     .optional(),
   featured: z.boolean().optional(),
+  /** Asosiy rasm URL — mavjud bo‘lsa yangilanadi, yo‘q bo‘lsa yaratiladi */
+  imageUrl: z.string().url().optional(),
 });
 
 export async function POST(req: Request) {
@@ -77,6 +79,28 @@ export async function POST(req: Request) {
       },
       select: { id: true, name: true, slug: true, status: true, price: true },
     });
+
+    if (body.imageUrl) {
+      const primary = await prisma.productImage.findFirst({
+        where: { productId: body.id },
+        orderBy: { sortOrder: "asc" },
+      });
+      if (primary) {
+        await prisma.productImage.update({
+          where: { id: primary.id },
+          data: { url: body.imageUrl, alt: product.name },
+        });
+      } else {
+        await prisma.productImage.create({
+          data: {
+            productId: body.id,
+            url: body.imageUrl,
+            alt: product.name,
+            sortOrder: 0,
+          },
+        });
+      }
+    }
 
     return NextResponse.json({ ok: true, product });
   } catch (err) {

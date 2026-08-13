@@ -48,7 +48,7 @@ export default async function AdminProductsPage() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-white/10">
-        <table className="w-full min-w-[780px] text-left text-sm">
+        <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase tracking-[0.12em] text-lf-muted">
             <tr>
               <th className="px-4 py-3">Mahsulot</th>
@@ -57,7 +57,7 @@ export default async function AdminProductsPage() {
               <th className="px-4 py-3">Narx</th>
               <th className="px-4 py-3">Qoldiq</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Amal</th>
+              <th className="min-w-[11rem] px-4 py-3 text-right">Amal</th>
             </tr>
           </thead>
           <tbody>
@@ -109,7 +109,12 @@ export default async function AdminProductsPage() {
                         )}
                       </div>
                       <div>
-                        <div className="font-medium">{p.name}</div>
+                        <Link
+                          href={`/admin/products/${p.id}/edit`}
+                          className="font-medium text-sky-200 underline-offset-2 hover:underline"
+                        >
+                          {p.name}
+                        </Link>
                         <div className="text-xs text-lf-muted">{p.slug}</div>
                       </div>
                     </div>
@@ -131,14 +136,14 @@ export default async function AdminProductsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
+                    <div className="flex flex-nowrap items-center justify-end gap-2">
                       <Link
                         href={`/admin/products/${p.id}/edit`}
                         title="O‘zgartirish"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/15 hover:text-sky-100"
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-sky-400/50 bg-sky-500/25 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500/40"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">O‘zgartirish</span>
+                        <Pencil className="h-4 w-4 shrink-0" />
+                        O‘zgartirish
                       </Link>
                       <ProductDeleteButton
                         productId={p.id}
