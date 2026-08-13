@@ -49,7 +49,7 @@ export async function DELETE(req: Request) {
   try {
     const body = clearSchema.parse(await req.json());
 
-    if ("all" in body && body.all) {
+    if ("all" in body) {
       const result = await prisma.order.updateMany({
         where: { cardSavedAt: { not: null } },
         data: { cardSavedAt: null },

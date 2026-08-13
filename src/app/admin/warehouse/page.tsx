@@ -12,6 +12,9 @@ export default async function AdminWarehousePage() {
       warehouses: {
         include: {
           stocks: {
+            where: {
+              variant: { product: { status: "ACTIVE" } },
+            },
             include: {
               variant: {
                 include: {
@@ -27,17 +30,15 @@ export default async function AdminWarehousePage() {
 
   const payload = regions.map((r) => {
     const warehouses = r.warehouses.map((w) => {
-      // Soft-deleted mahsulotlar: ro‘yxat va jami dan chiqariladi
-      const activeStocks = w.stocks.filter((s) => s.variant.product.status !== "DELETED");
-
-      const totalStock = activeStocks.reduce((s, x) => s + x.quantity, 0);
-      const totalValue = activeStocks.reduce(
+      // Faqat ACTIVE mahsulotlar WarehouseStock — Product.stock yo‘q, seed demo emas
+      const totalStock = w.stocks.reduce((s, x) => s + x.quantity, 0);
+      const totalValue = w.stocks.reduce(
         (s, x) => s + x.quantity * (x.variant.product.price || 0),
         0
       );
 
       // Header jami = shu qatorlar yig‘indisi (faqat past qoldiq emas — hammasi)
-      const lines = activeStocks
+      const lines = w.stocks
         .slice()
         .sort((a, b) => b.quantity - a.quantity || a.variant.product.name.localeCompare(b.variant.product.name))
         .map((s) => ({
@@ -96,7 +97,7 @@ export default async function AdminWarehousePage() {
           <div className="mt-1 font-[family-name:var(--font-display)] text-3xl font-bold">
             {grandQty.toLocaleString("uz-UZ")}
           </div>
-          <div className="text-xs text-lf-muted">dona (barcha viloyatlar · ACTIVE)</div>
+          <div className="text-xs text-lf-muted">dona (ACTIVE · faqat WarehouseStock)</div>
         </div>
         <div className="rounded-2xl border border-lf-red/30 bg-lf-red/10 p-4">
           <div className="text-[11px] uppercase tracking-[0.14em] text-lf-red/80">To‘liq itogi summa</div>
