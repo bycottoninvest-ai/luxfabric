@@ -23,6 +23,7 @@ export function ClearStockButton() {
         error?: string;
         updatedRows?: number;
         previousQtySum?: number;
+        remainingQtySum?: number;
       };
       if (!res.ok) {
         throw new Error(data.error || `Xatolik (${res.status})`);
@@ -30,7 +31,8 @@ export function ClearStockButton() {
       window.alert(
         `Qoldiq tozalandi.\n` +
           `Oldingi jami: ${(data.previousQtySum ?? 0).toLocaleString("uz-UZ")} dona\n` +
-          `Yangilangan qatorlar: ${data.updatedRows ?? 0}`
+          `Yangilangan qatorlar: ${data.updatedRows ?? 0}\n` +
+          `Qolgan jami: ${(data.remainingQtySum ?? 0).toLocaleString("uz-UZ")} dona`
       );
       router.refresh();
     } catch (e) {

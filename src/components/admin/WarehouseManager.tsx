@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatSom } from "@/lib/utils";
 
-type LowStock = {
+type StockLine = {
   stockId: string;
   warehouseId: string;
   variantId: string;
   label: string;
   quantity: number;
+  lineValue: number;
 };
 
 type RegionCard = {
@@ -23,16 +24,55 @@ type RegionCard = {
     city: string;
     phone: string | null;
     isCentral: boolean;
-    lowStock: LowStock[];
+    totalStock: number;
+    totalValue: number;
+    lines: StockLine[];
   }[];
 };
+
+function withTotals(r: RegionCard): RegionCard {
+  const warehouses = r.warehouses.map((w) => ({
+    ...w,
+    totalStock: w.lines.reduce((s, x) => s + x.quantity, 0),
+    totalValue: w.lines.reduce((s, x) => s + x.lineValue, 0),
+  }));
+  return {
+    ...r,
+    warehouses,
+    regionStock: warehouses.reduce((s, w) => s + w.totalStock, 0),
+    regionValue: warehouses.reduce((s, w) => s + w.totalValue, 0),
+  };
+}
 
 export function WarehouseManager({ regions }: { regions: RegionCard[] }) {
   const [data, setData] = useState(regions);
   const [openId, setOpenId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  /** qty 0 bo‘lganda ham birlik narx */
+  const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
 
-  async function updateStock(item: LowStock, quantity: number) {
+  // clear-stock / router.refresh() dan keyin server props bilan sinxron
+  useEffect(() => {
+    setData(regions);
+    const map: Record<string, number> = {};
+    for (const r of regions) {
+      for (const w of r.warehouses) {
+        for (const line of w.lines) {
+          if (line.quantity > 0) {
+            map[`${w.id}:${line.variantId}`] = line.lineValue / line.quantity;
+          }
+        }
+      }
+    }
+    setUnitPrices((prev) => ({ ...prev, ...map }));
+  }, [regions]);
+
+  async function updateStock(item: StockLine, quantity: number) {
+    const key = `${item.warehouseId}:${item.variantId}`;
+    const unit =
+      unitPrices[key] ??
+      (item.quantity > 0 ? item.lineValue / item.quantity : 0);
+
     setSaving(item.variantId + item.warehouseId);
     const res = await fetch("/api/admin/warehouses", {
       method: "PATCH",
@@ -48,20 +88,27 @@ export function WarehouseManager({ regions }: { regions: RegionCard[] }) {
       alert("Saqlashda xatolik");
       return;
     }
+    if (unit > 0) {
+      setUnitPrices((p) => ({ ...p, [key]: unit }));
+    }
     setData((prev) =>
-      prev.map((r) => ({
-        ...r,
-        warehouses: r.warehouses.map((w) =>
-          w.id !== item.warehouseId
-            ? w
-            : {
-                ...w,
-                lowStock: w.lowStock.map((s) =>
-                  s.variantId === item.variantId ? { ...s, quantity } : s
-                ),
-              }
-        ),
-      }))
+      prev.map((r) =>
+        withTotals({
+          ...r,
+          warehouses: r.warehouses.map((w) =>
+            w.id !== item.warehouseId
+              ? w
+              : {
+                  ...w,
+                  lines: w.lines.map((s) =>
+                    s.variantId === item.variantId
+                      ? { ...s, quantity, lineValue: quantity * unit }
+                      : s
+                  ),
+                }
+          ),
+        })
+      )
     );
   }
 
@@ -70,6 +117,8 @@ export function WarehouseManager({ regions }: { regions: RegionCard[] }) {
       {data.map((r) => {
         const w = r.warehouses[0];
         const open = openId === r.id;
+        const showLines = (w?.lines ?? []).filter((s) => s.quantity > 0);
+
         return (
           <div
             key={r.id}
@@ -95,18 +144,24 @@ export function WarehouseManager({ regions }: { regions: RegionCard[] }) {
             </button>
 
             {open && w && (
-              <div className="mt-2 space-y-1.5 border-t border-white/10 pt-2">
+              <div className="mt-2 max-h-64 space-y-1.5 overflow-y-auto border-t border-white/10 pt-2">
                 {w.phone && <div className="text-[10px] text-lf-muted">{w.phone}</div>}
-                {w.lowStock.length === 0 ? (
-                  <div className="text-[10px] text-emerald-400">Past qoldiq yo‘q</div>
+                {showLines.length === 0 ? (
+                  <div className="text-[10px] text-emerald-400">
+                    Qoldiq yo‘q · jami {r.regionStock.toLocaleString("uz-UZ")} dona
+                  </div>
                 ) : (
-                  w.lowStock.slice(0, 3).map((s) => (
+                  showLines.map((s) => (
                     <div key={s.variantId} className="rounded-lg bg-black/30 p-1.5">
                       <div className="truncate text-[10px] text-amber-100">{s.label}</div>
+                      <div className="mt-0.5 text-[9px] text-white/40">
+                        {s.quantity.toLocaleString("uz-UZ")} dona · {formatSom(s.lineValue)}
+                      </div>
                       <div className="mt-1 flex gap-1">
                         <input
                           type="number"
                           min={0}
+                          key={`${s.warehouseId}-${s.variantId}-${s.quantity}`}
                           defaultValue={s.quantity}
                           className="w-14 rounded border border-white/10 bg-black/40 px-1 py-0.5 text-[11px]"
                           id={`qty-${s.warehouseId}-${s.variantId}`}

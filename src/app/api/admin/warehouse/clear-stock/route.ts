@@ -21,8 +21,23 @@ export async function POST() {
       _count: { _all: true },
     });
 
+    // Barcha WarehouseStock qatorlari (shu jumladan DELETED mahsulotlar) → 0
     const result = await prisma.warehouseStock.updateMany({
+      where: { quantity: { not: 0 } },
       data: { quantity: 0 },
+    });
+
+    const after = await prisma.warehouseStock.aggregate({
+      _sum: { quantity: true },
+    });
+    const remaining = after._sum.quantity ?? 0;
+    if (remaining !== 0) {
+      // Ikkinchi urinish — qisman yangilanish qolmasin
+      await prisma.warehouseStock.updateMany({ data: { quantity: 0 } });
+    }
+
+    const verify = await prisma.warehouseStock.aggregate({
+      _sum: { quantity: true },
     });
 
     return NextResponse.json({
@@ -30,6 +45,7 @@ export async function POST() {
       updatedRows: result.count,
       previousQtySum: before._sum.quantity ?? 0,
       stockRows: before._count._all,
+      remainingQtySum: verify._sum.quantity ?? 0,
     });
   } catch (err) {
     return NextResponse.json(

@@ -3,6 +3,8 @@ import { formatSom } from "@/lib/utils";
 import { ClearStockButton } from "@/components/admin/ClearStockButton";
 import { WarehouseManager } from "@/components/admin/WarehouseManager";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminWarehousePage() {
   const regions = await prisma.region.findMany({
     orderBy: { sortOrder: "asc" },
@@ -12,7 +14,9 @@ export default async function AdminWarehousePage() {
           stocks: {
             include: {
               variant: {
-                include: { product: { select: { name: true, price: true } } },
+                include: {
+                  product: { select: { name: true, price: true, status: true } },
+                },
               },
             },
           },
@@ -23,22 +27,26 @@ export default async function AdminWarehousePage() {
 
   const payload = regions.map((r) => {
     const warehouses = r.warehouses.map((w) => {
-      const totalStock = w.stocks.reduce((s, x) => s + x.quantity, 0);
-      const totalValue = w.stocks.reduce(
+      // Soft-deleted mahsulotlar: ro‘yxat va jami dan chiqariladi
+      const activeStocks = w.stocks.filter((s) => s.variant.product.status !== "DELETED");
+
+      const totalStock = activeStocks.reduce((s, x) => s + x.quantity, 0);
+      const totalValue = activeStocks.reduce(
         (s, x) => s + x.quantity * (x.variant.product.price || 0),
         0
       );
-      const lowStock = w.stocks
-        .filter((s) => s.quantity < 12)
-        .sort((a, b) => a.quantity - b.quantity)
-        .slice(0, 8)
+
+      // Header jami = shu qatorlar yig‘indisi (faqat past qoldiq emas — hammasi)
+      const lines = activeStocks
+        .slice()
+        .sort((a, b) => b.quantity - a.quantity || a.variant.product.name.localeCompare(b.variant.product.name))
         .map((s) => ({
           stockId: s.id,
           warehouseId: w.id,
           variantId: s.variantId,
           label: `${s.variant.product.name} ${s.variant.size}/${s.variant.color}`,
           quantity: s.quantity,
-          lineValue: s.quantity * s.variant.product.price,
+          lineValue: s.quantity * (s.variant.product.price || 0),
         }));
 
       return {
@@ -51,7 +59,7 @@ export default async function AdminWarehousePage() {
         isActive: w.isActive,
         totalStock,
         totalValue,
-        lowStock,
+        lines,
       };
     });
 
@@ -88,7 +96,7 @@ export default async function AdminWarehousePage() {
           <div className="mt-1 font-[family-name:var(--font-display)] text-3xl font-bold">
             {grandQty.toLocaleString("uz-UZ")}
           </div>
-          <div className="text-xs text-lf-muted">dona (barcha viloyatlar)</div>
+          <div className="text-xs text-lf-muted">dona (barcha viloyatlar · ACTIVE)</div>
         </div>
         <div className="rounded-2xl border border-lf-red/30 bg-lf-red/10 p-4">
           <div className="text-[11px] uppercase tracking-[0.14em] text-lf-red/80">To‘liq itogi summa</div>
@@ -101,7 +109,6 @@ export default async function AdminWarehousePage() {
         </div>
       </div>
 
-      {/* Kichik panel — har viloyat */}
       <WarehouseManager regions={payload} />
     </div>
   );
