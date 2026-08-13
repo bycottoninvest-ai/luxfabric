@@ -1,6 +1,6 @@
 # LUXFABRIC — Click + Payme ulash
 
-Kod tayyor (2026-08-13). **Ulash boshlandi** — deploy + migrate urinilmoqda; **kalitlar kutilyapti**. Merchant kabinetdan kalitlar sizniki — ularsiz to‘lov ochilmaydi. Fake PAID yo‘q.
+Kod tayyor (2026-08-13). **Ulash boshlandi** — prod da status API jonli (`configured: false`); **kalitlar kutilyapti**. Merchant kabinetdan kalitlar sizniki — ularsiz to‘lov ochilmaydi. Fake PAID yo‘q.
 
 **Ishga tushirish (kuryer + to‘lov tartibi):** [`docs/ISHGA-TUSHIRISH-REJA.md`](./ISHGA-TUSHIRISH-REJA.md)
 

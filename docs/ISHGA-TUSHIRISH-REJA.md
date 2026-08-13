@@ -7,7 +7,7 @@
 > Fake API kalit / fake PAID yo‘q. Merchant kabinetdan kelgan haqiqiy kalitlar kerak.
 
 ### Holat (2026-08-13 kechqurun)
-**Ulash boshlandi** — Click/Payme kod + docs commit/deploy qilinmoqda; **merchant kalitlar Salayevdan kutilyapti** (Admin → Sozlamalar). Neon Payme migrate — `.env` `DATABASE_URL` bilan urinib ko‘riladi / kerak bo‘lsa SQL qo‘lda.
+**Ulash boshlandi** — kod `main` da (`d8d612b` + keyin `6d36009`); prod da `/api/payments/status` + `/api/payme` + Click prepare/complete **jonli**. `click.configured` / `payme.configured` = **false** → **kalitlar kutilyapti** (Admin → Sozlamalar). Lokal `prisma migrate deploy` = **P1000** (eski `.env` parol); Vercel buildda migrate: **pending yo‘q**. Keyingi CLI `--prod` Hobby 12 function limiti bilan Error — agar yangi deploy kerak bo‘lsa Vercel Dashboard Ready ni Promote yoki Pro.
 
 ---
 

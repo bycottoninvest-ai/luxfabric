@@ -148,7 +148,7 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Chap Reels arxiv → Izohlar · sync · AI javob · `instagram_ai_comments` toggle.
 
 ### 6) Click + Payme + COD/CARD (kod tayyor — kalitlar kerak)
-- **Ulash boshlandi (2026-08-13):** kod deploy jarayonda; **kalitlar kutilyapti** (mc.click.uz / business.payme.uz → Admin Sozlamalar).
+- **Ulash boshlandi (2026-08-13):** kod `main` + prod Ready (`/api/payments/status` jonli, configured=false); **kalitlar kutilyapti** (mc.click.uz → Admin Sozlamalar).
 - Click: `src/lib/click.ts`, `click-webhook.ts`, `/api/click/prepare|complete` (+ `/api/click`)
 - Payme: `src/lib/payme.ts`, `payme-webhook.ts`, `/api/payme` (JSON-RPC)
 - Holat: `GET /api/payments/status` · qo‘llanma: `docs/TOLASH-ULASH.md` · reja: `docs/ISHGA-TUSHIRISH-REJA.md`
