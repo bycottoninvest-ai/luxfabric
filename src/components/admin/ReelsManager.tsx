@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { formatSom } from "@/lib/utils";
 import { uploadAdminMedia } from "@/lib/client-upload";
-import { productBuyUrl } from "@/lib/ig-caption";
+import { buildIgBuyCtaLine, productBuyUrl, stripIgBuyCta } from "@/lib/ig-caption";
 
 const PUBLIC_ORIGIN = "https://www.luxfabricshop.uz";
 const IG_PROFILE_URL = "https://www.instagram.com/luxfabric.shop/";
@@ -258,6 +258,15 @@ export function ReelsManager({
   const [replyBusyId, setReplyBusyId] = useState<string | null>(null);
 
   const productOptions = useMemo(() => products, [products]);
+  const selectedProduct = useMemo(
+    () => productOptions.find((p) => p.id === productId),
+    [productOptions, productId]
+  );
+  const previewBuyUrl =
+    showBuy && selectedProduct ? productBuyUrl(PUBLIC_ORIGIN, selectedProduct.slug) : null;
+  const previewBuyLine = previewBuyUrl
+    ? buildIgBuyCtaLine(previewBuyUrl, buyLabel)
+    : null;
   const musicTracks = useMemo(() => music, [music]);
   const selectedLibraryTrack = useMemo(
     () => (musicId ? musicTracks.find((m) => m.id === musicId) : undefined),
@@ -430,7 +439,7 @@ export function ReelsManager({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "AI xatosi");
       if (data.title) setTitle(data.title);
-      if (data.caption) setCaption(data.caption);
+      if (data.caption) setCaption(stripIgBuyCta(data.caption));
       if (typeof data.configured === "boolean") {
         setChatgpt({
           configured: data.configured,
@@ -460,9 +469,7 @@ export function ReelsManager({
       const p = productOptions.find((x) => x.id === id);
       if (p) {
         setTitle(`${p.name} · yangi`);
-        setCaption(
-          `${p.name} — ${formatSom(p.price)}.\n\n👇 Sotib olish\n\n(Havola Instagramga joylashda avtomatik qo‘shiladi)`
-        );
+        setCaption(`${p.name} — ${formatSom(p.price)}.`);
         setMsg("Matn yozildi ✓ (lokal). Server xatosi: " + (e instanceof Error ? e.message : ""));
       } else {
         setMsg(e instanceof Error ? e.message : "AI xatosi");
@@ -746,7 +753,7 @@ export function ReelsManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          caption,
+          caption: stripIgBuyCta(caption),
           videoUrl,
           musicId: musicForSave || null,
           productId: showBuy ? productId || null : null,
@@ -829,10 +836,13 @@ export function ReelsManager({
         message: data.message || "Reel Instagramga joylandi ✓",
       });
       setMsg(data.message || "Reel Instagramga joylandi ✓");
+      setReelMsg(data.message || "Reel Instagramga joylandi ✓");
       router.refresh();
     } catch (e) {
       setPublishOk(null);
-      setMsg(e instanceof Error ? `❗ ${e.message}` : "❗ Publish xatosi");
+      const err = e instanceof Error ? `❗ ${e.message}` : "❗ Publish xatosi";
+      setMsg(err);
+      setReelMsg(err);
     } finally {
       setBusy(false);
     }
@@ -924,7 +934,7 @@ export function ReelsManager({
     setEditing(reel);
     setDetailTab(tab);
     setEditTitle(reel.title);
-    setEditCaption(reel.caption || "");
+    setEditCaption(stripIgBuyCta(reel.caption || ""));
     setEditMusicId(reel.musicId || "");
     setEditProductId(reel.productId || "");
     setEditBuyLabel(reel.buyButtonLabel || "Sotib olish");
@@ -981,7 +991,7 @@ export function ReelsManager({
         body: JSON.stringify({
           id: editing.id,
           title: editTitle.trim(),
-          caption: editCaption,
+          caption: stripIgBuyCta(editCaption),
           musicId: editMusicId || null,
           productId: editShowBuy ? editProductId || null : null,
           buyButtonLabel: editBuyLabel || "Sotib olish",
@@ -1767,9 +1777,19 @@ export function ReelsManager({
           </p>
         )}
         {msg && (
-          <p className={`text-sm ${msg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}>
-            {msg}
-          </p>
+          <div className="space-y-2">
+            <p className={`text-sm ${msg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}>
+              {msg}
+            </p>
+            {/token|oauth|parse access/i.test(msg) && (
+              <a
+                href="/api/admin/instagram/oauth/start"
+                className="inline-flex rounded-xl bg-lf-red px-4 py-2 text-sm font-semibold text-white"
+              >
+                Instagram tokenni qayta olish (OAuth)
+              </a>
+            )}
+          </div>
         )}
 
         <div className="flex flex-wrap items-center gap-3">
@@ -1853,9 +1873,23 @@ export function ReelsManager({
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
-            placeholder="Mahsulot tanlanganda o‘zi yoziladi"
+            placeholder="Faqat mahsulot matni — savatcha/Sotib olish yozmang"
           />
         </label>
+        {previewBuyLine && (
+          <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2.5 space-y-1">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-300">
+              Reeldan keyin birinchi chiqadi
+            </div>
+            <code className="block break-all text-[12px] leading-relaxed text-white">
+              {previewBuyLine}
+            </code>
+            <p className="text-[11px] text-white/55">
+              Caption 1-qatori + birinchi izoh. Bosilganda shu mahsulot sahifasi ochiladi. Caption
+              boshiga savatcha yozilmaydi.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1909,13 +1943,14 @@ export function ReelsManager({
         <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={showBuy} onChange={(e) => setShowBuy(e.target.checked)} />
-            «Sotib olish» (sayt /instagram qizil tugma + caption + birinchi izoh)
+            «Sotib olish» (sayt /instagram qizil tugma + caption 1-qator + birinchi izoh)
           </label>
           {showBuy && (
             <div className="space-y-2">
               <p className="text-[11px] leading-relaxed text-white/50">
                 Instagram ilovasida qizil overlay tugma Meta tomonidan yopiq. Admin orqali joylasangiz:
-                captionda CTA + avtomatik birinchi izoh (havola). Telefondan qo‘lda joylasangiz — kod
+                Reeldan keyin birinchi chiqadi — to‘liq «Sotib olish» havolasi (caption 1-qator + avtomatik
+                birinchi izoh). Caption boshiga savatcha yozilmaydi. Telefondan qo‘lda joylasangiz — kod
                 ishlamaydi.
               </p>
               {!productId && (
@@ -1967,7 +2002,7 @@ export function ReelsManager({
             </button>
           </div>
           <p className="rounded-xl bg-black/30 px-3 py-2 text-sm font-medium text-white">
-            Caption + birinchi izohda Sotib olish linki chiqadi
+            Caption 1-qator + birinchi izoh: Sotib olish havolasi
           </p>
           <ul className="space-y-1 text-xs text-white/70">
             <li>
@@ -2008,12 +2043,22 @@ export function ReelsManager({
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
         <h2 className="font-semibold">Reels ro‘yxati ({reels.length})</h2>
         {reelMsg && (
-          <p
-            className={`text-sm ${reelMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}
-            role="status"
-          >
-            {reelMsg}
-          </p>
+          <div className="space-y-2">
+            <p
+              className={`text-sm ${reelMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}
+              role="status"
+            >
+              {reelMsg}
+            </p>
+            {/token|oauth|parse access/i.test(reelMsg) && (
+              <a
+                href="/api/admin/instagram/oauth/start"
+                className="inline-flex rounded-xl bg-lf-red px-4 py-2 text-sm font-semibold text-white"
+              >
+                Instagram tokenni qayta olish (OAuth)
+              </a>
+            )}
+          </div>
         )}
         {reels.length === 0 && <p className="text-xs text-white/40">Hali Reel yo‘q — yuqoridan yarating.</p>}
         {reels.map((r) => (
@@ -2216,8 +2261,28 @@ export function ReelsManager({
                       value={editCaption}
                       onChange={(e) => setEditCaption(e.target.value)}
                       className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
+                      placeholder="Faqat mahsulot matni — savatcha/Sotib olish yozmang"
                     />
                   </label>
+                  {editShowBuy &&
+                    (() => {
+                      const p = productOptions.find((x) => x.id === editProductId);
+                      if (!p) return null;
+                      const line = buildIgBuyCtaLine(
+                        productBuyUrl(PUBLIC_ORIGIN, p.slug),
+                        editBuyLabel
+                      );
+                      return (
+                        <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2.5 space-y-1">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-300">
+                            Reeldan keyin birinchi chiqadi
+                          </div>
+                          <code className="block break-all text-[12px] leading-relaxed text-white">
+                            {line}
+                          </code>
+                        </div>
+                      );
+                    })()}
 
                   <label className="block space-y-1.5">
                     <span className="text-xs uppercase tracking-[0.12em] text-white/45">Mahsulot</span>

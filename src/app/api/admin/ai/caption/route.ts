@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { formatSom } from "@/lib/utils";
-import { buildIgTemplateCaption, productBuyUrl } from "@/lib/ig-caption";
+import { buildIgTemplateCaption, productBuyUrl, stripIgBuyCta } from "@/lib/ig-caption";
 import { getSetting } from "@/lib/settings";
 
 const schema = z.object({
@@ -83,7 +83,8 @@ Ranglar: ${colors.join(", ") || "—"}
 O‘lchamlar: ${sizes.join(", ") || "—"}
 
 JSON qaytar (faqat JSON): {"title":"...","caption":"..."}
-title: 3–7 so‘z. caption: BIRINCHI qator — qisqa hook (1 jumla). IKKINCHI qator — «🛒 Sotib olish» chorlovi (URL yozma). Keyin ixtiyoriy rang/o‘lcham. Soft sell, emoji.`;
+title: 3–7 so‘z.
+caption: faqat mahsulot haqida 2–4 jumla. BOSHida savatcha, «🛒», «Sotib olish», URL YO‘Q — havolani tizim o‘zi 1-qator va birinchi izohga qo‘shadi. Soft sell, emoji ixtiyoriy.`;
 
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -112,7 +113,7 @@ title: 3–7 so‘z. caption: BIRINCHI qator — qisqa hook (1 jumla). IKKINCHI 
               configured: true,
               model,
               title: String(parsed.title).slice(0, 80),
-              caption: String(parsed.caption).slice(0, 500),
+              caption: stripIgBuyCta(String(parsed.caption)).slice(0, 500),
               suggestedMusicId,
             });
           }

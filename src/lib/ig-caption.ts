@@ -1,4 +1,4 @@
-/** Instagram feed/Reel caption: CTA + URL early (preview ~125 belgi kesadi). */
+/** Instagram feed/Reel caption: CTA + URL birinchi qator (preview ~125 belgi kesadi). */
 
 const DEFAULT_PUBLIC_ORIGIN = "https://www.luxfabricshop.uz";
 
@@ -27,79 +27,53 @@ export function instagramBioUrl(domain?: string | null): string {
 }
 
 /** Captiondagi eski «Sotib olish» / buy URL qatorlarini tozalash (qayta joylash uchun). */
-function stripBuyCtaAndUrl(text: string, buyUrl?: string | null): string {
+export function stripIgBuyCta(text: string, buyUrl?: string | null): string {
   let t = (text || "").trim();
-  // oxiridagi CTA
-  t = t
-    .replace(/(?:\r?\n|\s)*(?:🛒|👇)\uFE0F?\s*Sotib olish(?:\s*:\s*\S+)?\s*[.…]?\s*$/giu, "")
-    .replace(/(?:\r?\n|\s)*Sotib olish(?:\s*:\s*https?:\/\/\S+)?\s*[.…]?\s*$/giu, "");
-  // butun qator CTA (o‘rtada ham)
-  t = t.replace(/^(?:🛒|👇)\uFE0F?\s*Sotib olish(?:\s*:\s*\S+)?\s*[.….]?\s*$/gimu, "");
-  t = t.replace(/^Sotib olish(?:\s*:\s*https?:\/\/\S+)?\s*[.….]?\s*$/gimu, "");
   if (buyUrl?.trim()) {
     t = t.split(buyUrl.trim()).join("");
   }
-  return t.replace(/\n{3,}/g, "\n\n").trim();
+  t = t.replace(/https?:\/\/(?:www\.)?luxfabricshop\.uz\/i\/[^\s]+/gi, "");
+  t = t.replace(/\(Havola Instagramga joylashda avtomatik qo['‘’]?shiladi\)/gi, "");
+  t = t.replace(/^(?:🛒|👇)\uFE0F?\s*Sotib olish(?:\s*:\s*\S*)?\s*[.….]?\s*$/gimu, "");
+  t = t.replace(/^Sotib olish(?:\s*:\s*https?:\/\/\S+)?\s*[.….]?\s*$/gimu, "");
+  t = t.replace(/(?:\r?\n|\s)*(?:🛒|👇)\uFE0F?\s*Sotib olish(?:\s*:\s*\S+)?\s*[.…]?\s*$/giu, "");
+  t = t.replace(/(?:\r?\n|\s)*Sotib olish(?:\s*:\s*https?:\/\/\S+)?\s*[.…]?\s*$/giu, "");
+  return t.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+\n/g, "\n").trim();
+}
+
+/** Instagramda birinchi chiqadigan qator — to‘liq bosiladigan URL. */
+export function buildIgBuyCtaLine(buyUrl: string, buyLabel?: string): string {
+  const label = (buyLabel || "Sotib olish").trim() || "Sotib olish";
+  return `🛒 ${label}: ${buyUrl.trim()}`;
 }
 
 /**
- * Hook (1–2 qator) → Sotib olish + HTTPS URL → qolgan matn.
- * URL allaqachon caption ichida bo‘lsa ham CTA yuqoriga ko‘chiriladi.
+ * 1-qator: Sotib olish + HTTPS URL (IG kesmasin, xaridor darhol bossin).
+ * Keyin mahsulot matni — boshida savatcha/«Sotib olish» yo‘q.
  */
 export function buildIgPublishCaption(opts: {
   caption: string;
   buyUrl?: string | null;
   buyLabel?: string;
 }): string {
-  const label = (opts.buyLabel || "Sotib olish").trim() || "Sotib olish";
   const buyUrl = (opts.buyUrl || "").trim();
-  let body = stripBuyCtaAndUrl(opts.caption || "", buyUrl);
+  const body = stripIgBuyCta(opts.caption || "", buyUrl);
 
   if (!buyUrl) return body.slice(0, 2200);
 
-  const ctaLine = `🛒 ${label}: ${buyUrl}`;
-  const paragraphs = body.split(/\n+/).map((p) => p.trim()).filter(Boolean);
-
-  let head: string;
-  let rest: string;
-  if (paragraphs.length === 0) {
-    head = "";
-    rest = "";
-  } else if (paragraphs.length === 1) {
-    const one = paragraphs[0];
-    const sentenceBreak = one.search(/[.!?…](?:\s|$)/);
-    if (sentenceBreak > 0 && sentenceBreak < 140) {
-      head = one.slice(0, sentenceBreak + 1).trim();
-      rest = one.slice(sentenceBreak + 1).trim();
-    } else if (one.length > 120) {
-      const cut = one.lastIndexOf(" ", 100);
-      const at = cut > 40 ? cut : 100;
-      head = one.slice(0, at).trim();
-      rest = one.slice(at).trim();
-    } else {
-      head = one;
-      rest = "";
-    }
-  } else {
-    head = paragraphs.slice(0, Math.min(2, paragraphs.length)).join("\n");
-    rest = paragraphs.slice(Math.min(2, paragraphs.length)).join("\n");
-  }
-
-  const parts = [head, ctaLine, rest].filter(Boolean);
-  return parts.join("\n\n").slice(0, 2200);
+  const ctaLine = buildIgBuyCtaLine(buyUrl, opts.buyLabel);
+  return [ctaLine, body].filter(Boolean).join("\n\n").slice(0, 2200);
 }
 
-/** Publishdan keyin birinchi izoh — qisqa, bosiladigan URL. */
+/** Publishdan keyin birinchi izoh — caption 1-qatori bilan bir xil, bosiladigan URL. */
 export function buildIgFirstComment(opts: {
   buyUrl: string;
   buyLabel?: string;
 }): string {
-  const label = (opts.buyLabel || "Sotib olish").trim() || "Sotib olish";
-  const url = opts.buyUrl.trim();
-  return `🛒 ${label}: ${url}`.slice(0, 800);
+  return buildIgBuyCtaLine(opts.buyUrl, opts.buyLabel).slice(0, 800);
 }
 
-/** AI/shablon caption: hook + CTA chorlovi yuqorida, rang/o‘lcham pastda. */
+/** AI/shablon caption: faqat mahsulot matni. Savatcha/URL publishda 1-qatorga qo‘shiladi. */
 export function buildIgTemplateCaption(opts: {
   name: string;
   priceLabel: string;
@@ -110,11 +84,8 @@ export function buildIgTemplateCaption(opts: {
   buyUrl?: string | null;
 }): string {
   const hook =
-    opts.description?.trim().slice(0, 100) ||
+    opts.description?.trim().slice(0, 140) ||
     `${opts.name} — ${opts.fabric || "premium mato"}.`;
-  const cta = opts.buyUrl
-    ? `🛒 Sotib olish: ${opts.buyUrl}`
-    : `👇 Sotib olish · narx ${opts.priceLabel}`;
   const details = [
     `Narx ${opts.priceLabel}.`,
     opts.colors?.length ? `Rang: ${opts.colors.join(", ")}.` : "",
@@ -123,5 +94,5 @@ export function buildIgTemplateCaption(opts: {
     .filter(Boolean)
     .join(" ");
 
-  return [hook, cta, details].filter(Boolean).join("\n\n");
+  return stripIgBuyCta([hook, details].filter(Boolean).join("\n\n"), opts.buyUrl);
 }

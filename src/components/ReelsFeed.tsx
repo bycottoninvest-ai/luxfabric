@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ShoppingBag, Volume2, VolumeX } from "lucide-react";
 import { formatSom } from "@/lib/utils";
+import { stripIgBuyCta } from "@/lib/ig-caption";
 
 export type StoreReel = {
   id: string;
@@ -51,6 +52,7 @@ function ReelCard({
   const useSeparateAudio = !!reel.music && !reel.audioEmbedded;
   const [muted, setMuted] = useState(true);
   const [playing, setPlaying] = useState(false);
+  const [ended, setEnded] = useState(false);
 
   useEffect(() => {
     if (autoFocus && cardRef.current) {
@@ -64,6 +66,7 @@ function ReelCard({
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
+          setEnded(false);
           video.play().catch(() => {});
           setPlaying(true);
           if (useSeparateAudio && audioRef.current && !muted) {
@@ -74,6 +77,7 @@ function ReelCard({
           video.pause();
           audioRef.current?.pause();
           setPlaying(false);
+          setEnded(false);
         }
       },
       { threshold: 0.65 }
@@ -105,6 +109,19 @@ function ReelCard({
     }
   }, [muted, useSeparateAudio]);
 
+  function replay() {
+    const video = videoRef.current;
+    if (!video) return;
+    setEnded(false);
+    video.currentTime = 0;
+    video.play().catch(() => {});
+    setPlaying(true);
+    if (useSeparateAudio && audioRef.current && !muted) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
+  }
+
   function toggleMute() {
     const next = !muted;
     setMuted(next);
@@ -125,63 +142,92 @@ function ReelCard({
           src={reel.videoUrl}
           className="absolute inset-0 h-full w-full object-cover"
           playsInline
-          loop
           muted={useSeparateAudio ? true : muted}
           preload={priority ? "auto" : "metadata"}
+          onEnded={() => {
+            audioRef.current?.pause();
+            setPlaying(false);
+            setEnded(true);
+          }}
         />
         {useSeparateAudio && reel.music && (
-          <audio ref={audioRef} src={reel.music.fileUrl} loop preload="metadata" muted={muted} />
+          <audio ref={audioRef} src={reel.music.fileUrl} preload="metadata" muted={muted} />
         )}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/25" />
 
-        <div className="absolute left-3 top-3 text-[13px] font-semibold text-white drop-shadow">
+        <div className="absolute left-3 top-3 z-20 text-[13px] font-semibold text-white drop-shadow">
           @{reel.username}
         </div>
 
         <button
           type="button"
           onClick={toggleMute}
-          className="absolute right-3 top-3 rounded-full bg-black/35 p-2 text-white"
+          className="absolute right-3 top-3 z-20 rounded-full bg-black/35 p-2 text-white"
           aria-label="Ovoz"
         >
           {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
         </button>
 
-        <div className="absolute bottom-4 left-3 right-3 space-y-2.5 text-white">
-          {reel.caption ? (
-            <p className="line-clamp-2 text-sm drop-shadow">{reel.caption}</p>
-          ) : (
-            <p className="text-sm font-semibold drop-shadow">{reel.title}</p>
-          )}
-          {reel.music && (
-            <div className="truncate text-[11px] text-white/70">
-              ♪ {reel.music.title} — {reel.music.artist}
-            </div>
-          )}
-          {reel.product && (
-            <div className="text-xs text-white/80">
-              {reel.product.name} · {formatSom(reel.product.price)}
-            </div>
-          )}
-          {reel.showBuyButton && reel.product ? (
-            <div className="space-y-1">
+        {ended && reel.showBuyButton && reel.product ? (
+          <div className="absolute inset-0 z-10 flex flex-col justify-end bg-black/70 px-3 pb-6 pt-16">
+            <Link
+              href={`/i/${reel.product.slug}?from=ig`}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-lf-red py-4 text-base font-extrabold text-white shadow-lg shadow-lf-red/30"
+            >
+              <ShoppingBag className="h-5 w-5" /> {reel.buyButtonLabel || "Sotib olish"}
+            </Link>
+            {reel.product && (
+              <p className="mt-2 text-center text-sm text-white">
+                {reel.product.name} · {formatSom(reel.product.price)}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={replay}
+              className="mt-4 text-center text-xs font-semibold text-white/80 underline-offset-2 hover:underline"
+            >
+              Qayta ko‘rish
+            </button>
+          </div>
+        ) : (
+          <div className="absolute bottom-4 left-3 right-3 space-y-2.5 text-white">
+            {reel.caption ? (
+              <p className="line-clamp-2 text-sm drop-shadow">
+                {stripIgBuyCta(reel.caption) || reel.title}
+              </p>
+            ) : (
+              <p className="text-sm font-semibold drop-shadow">{reel.title}</p>
+            )}
+            {reel.music && (
+              <div className="truncate text-[11px] text-white/70">
+                ♪ {reel.music.title} — {reel.music.artist}
+              </div>
+            )}
+            {reel.product && (
+              <div className="text-xs text-white/80">
+                {reel.product.name} · {formatSom(reel.product.price)}
+              </div>
+            )}
+            {reel.showBuyButton && reel.product ? (
+              <div className="space-y-1">
+                <Link
+                  href={`/i/${reel.product.slug}?from=ig`}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
+                >
+                  <ShoppingBag className="h-4 w-4" /> {reel.buyButtonLabel || "Sotib olish"}
+                </Link>
+                <p className="text-center text-[10px] text-white/65">O‘lcham → buyurtma</p>
+              </div>
+            ) : reel.showBuyButton && !reel.product ? (
               <Link
-                href={`/i/${reel.product.slug}?from=ig`}
+                href="/catalog"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
               >
-                <ShoppingBag className="h-4 w-4" /> {reel.buyButtonLabel || "Sotib olish"}
+                <ShoppingBag className="h-4 w-4" /> Katalog
               </Link>
-              <p className="text-center text-[10px] text-white/65">O‘lcham → buyurtma</p>
-            </div>
-          ) : reel.showBuyButton && !reel.product ? (
-            <Link
-              href="/catalog"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lf-red py-3 text-sm font-bold text-white"
-            >
-              <ShoppingBag className="h-4 w-4" /> Katalog
-            </Link>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        )}
       </div>
     </article>
   );

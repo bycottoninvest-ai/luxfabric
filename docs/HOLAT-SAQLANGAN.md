@@ -115,7 +115,9 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 - Lib: `src/lib/instagram-graph.ts` (Reels/Stories publish, IG user resolve, DM, comments)
 - API: `POST /api/admin/instagram/publish` · `GET ?action=test`
 - OAuth: `/api/admin/instagram/oauth/start` + callback (yuqorida)
-- Instagram Login token: `graph.instagram.com` (Page linksiz ham publish)
+- Instagram Login token: `graph.instagram.com` (Page linksiz ham publish). IG token Facebook Graph’ga yuborilmaydi.
+- Token yaroqsiz (`Cannot parse access token`) — Meta/DM → **Instagram token olish (OAuth)**. App Token (`app-id|secret`) publish uchun emas.
+- Caption 1-qator + 1-izoh: `🛒 Sotib olish: https://www.luxfabricshop.uz/i/{slug}?from=ig`
 - Webhook: `/api/instagram` (messaging + comments)
 - Schema: `metaMediaId`, `metaPublishedAt`
 

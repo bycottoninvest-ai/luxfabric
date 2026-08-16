@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Copy, ExternalLink, Link2, Power } from "lucide-react";
 import { instagramBioUrl, productBuyUrl, publicShopOrigin } from "@/lib/ig-caption";
+import { looksLikeIgAccessToken } from "@/lib/ig-token";
 
 type Product = {
   id: string;
@@ -64,6 +65,9 @@ export function InstagramPanel({
     setLoading(true);
     setMsg("");
     const payload = { ...form, ...extra };
+    if (!looksLikeIgAccessToken(payload.instagram_page_token || "")) {
+      delete payload.instagram_page_token;
+    }
     const res = await fetch("/api/admin/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -71,7 +75,7 @@ export function InstagramPanel({
     });
     setLoading(false);
     if (res.ok) {
-      setForm(payload);
+      setForm((f) => ({ ...f, ...extra }));
       setMsg("Saqlandi ✓");
       router.refresh();
     } else {
@@ -142,7 +146,11 @@ export function InstagramPanel({
     <label className="block space-y-1.5">
       <span className="text-xs uppercase tracking-[0.12em] text-white/45">{label}</span>
       <input
-        type={type}
+        type="text"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        name={`lf-${key}`}
         value={form[key] || ""}
         onChange={(e) => setForm({ ...form, [key]: e.target.value })}
         className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
@@ -291,14 +299,12 @@ export function InstagramPanel({
           {field(
             "instagram_page_token",
             "Access Token (Page yoki Instagram Login)",
-            "Page Access Token (Graph Explorer) yoki Instagram Login token — publish uchun",
-            "password"
+            "Page Access Token (Graph Explorer) yoki Instagram Login token — publish uchun"
           )}
           {field(
             "instagram_app_secret",
             "Instagram App Secret",
-            "Meta → Instagram API Setup → «Показать». Token olishdan oldin Saqlash",
-            "password"
+            "Meta → Instagram API Setup → «Показать». Token olishdan oldin Saqlash"
           )}
           {field(
             "instagram_ig_user_id",
@@ -327,15 +333,26 @@ export function InstagramPanel({
             </button>
           </div>
           <p className="text-[11px] text-white/40">
-            OAuth redirect (Meta ga qo‘ying):{" "}
+            Token yaroqsiz bo‘lsa (Cannot parse access token) — avval shu OAuth tugmasini bosing.
+            Redirect (Meta ga qo‘ying):{" "}
             <code className="text-white/70">
               https://www.luxfabricshop.uz/api/admin/instagram/oauth/callback
             </code>
           </p>
           {testMsg && (
-            <p className={`text-sm ${testMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}>
-              {testMsg}
-            </p>
+            <div className="space-y-2">
+              <p className={`text-sm ${testMsg.startsWith("❗") ? "text-rose-400" : "text-emerald-400"}`}>
+                {testMsg}
+              </p>
+              {/token|oauth|parse access/i.test(testMsg) && (
+                <a
+                  href="/api/admin/instagram/oauth/start"
+                  className="inline-flex rounded-xl bg-lf-red px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Instagram tokenni qayta olish (OAuth)
+                </a>
+              )}
+            </div>
           )}
         </section>
 

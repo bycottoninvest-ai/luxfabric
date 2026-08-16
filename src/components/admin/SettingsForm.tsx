@@ -34,7 +34,11 @@ export function SettingsForm({
     <label className="block space-y-1.5">
       <span className="text-xs uppercase tracking-[0.12em] text-lf-muted">{label}</span>
       <input
-        type={type}
+        type="text"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        name={`lf-${key}`}
         value={form[key] || ""}
         onChange={(e) => setForm({ ...form, [key]: e.target.value })}
         className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none ring-lf-red focus:ring-2"
@@ -56,8 +60,8 @@ export function SettingsForm({
         <h2 className="font-semibold">Instagram / Meta Graph API</h2>
         {field("instagram_username", "Instagram username")}
         {field("instagram_verify_token", "Verify token (webhook)")}
-        {field("instagram_page_token", "Page access token", "Meta Developer dan olingan token", "password")}
-        {field("instagram_app_secret", "App secret", undefined, "password")}
+        {field("instagram_page_token", "Page access token", "Meta Developer dan olingan token")}
+        {field("instagram_app_secret", "App secret")}
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

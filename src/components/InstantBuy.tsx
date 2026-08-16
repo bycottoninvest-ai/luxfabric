@@ -195,7 +195,7 @@ export function InstantBuy({ product, variants, fromIg }: Props) {
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-lf-border bg-white/98 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-xl">
         <div className="mx-auto max-w-lg">
           <p className="mb-1.5 text-center text-[11px] font-medium text-lf-muted">
-            2. Keyin — checkout (mahsulot savatda)
+            2. Sotib olish — to‘lov sahifasi
           </p>
           <button
             type="button"

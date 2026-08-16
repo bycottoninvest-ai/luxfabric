@@ -1,7 +1,18 @@
-import { getSetting, getAppUrl } from "@/lib/settings";
+import { getSetting, getAppUrl, setSettings } from "@/lib/settings";
+import { publicShopOrigin } from "@/lib/ig-caption";
+import {
+  igTokenKind,
+  looksLikeAppToken,
+  looksLikeIgAccessToken,
+  normalizeIgAccessToken,
+  refreshInstagramLoginToken,
+  igTokenReconnectMessage,
+  isUnparseableTokenError,
+} from "@/lib/ig-token";
 
 const GRAPH_FB = "https://graph.facebook.com/v21.0";
 const GRAPH_IG = "https://graph.instagram.com/v21.0";
+const GRAPH_IG_BARE = "https://graph.instagram.com";
 
 export type IgCredentials = {
   pageToken: string;
@@ -33,20 +44,97 @@ async function graphGet(base: string, path: string, token: string) {
   const res = await fetch(
     `${base}${path}${sep}access_token=${encodeURIComponent(token)}`
   );
-  const data = (await res.json()) as GraphMe;
-  return { res, data };
+  try {
+    const data = (await res.json()) as GraphMe;
+    return { res, data };
+  } catch {
+    return { res, data: { error: { message: "Graph javobi o‘qilmadi" } } };
+  }
+}
+
+type ResolvedIg = {
+  igUserId: string;
+  graphBase: string;
+  username: string | null;
+  name: string | null;
+  accountType: string | null;
+  pageTokenOverride?: string;
+};
+
+async function tryIgMe(token: string, bases: string[]): Promise<ResolvedIg | null> {
+  for (const base of bases) {
+    const igMe = await graphGet(base, `/me?fields=user_id,id,username,name,account_type`, token);
+    if (igMe.res.ok && !igMe.data.error) {
+      const id = igMe.data.user_id || igMe.data.id;
+      if (id) {
+        return {
+          igUserId: id,
+          graphBase: base,
+          username: igMe.data.username || null,
+          name: igMe.data.name || null,
+          accountType: igMe.data.account_type || null,
+        };
+      }
+    }
+  }
+  return null;
 }
 
 /** Token Page yoki IG Login ekanini aniqlab, IG user id + graph base qaytaradi */
 export async function resolveIgAccess(token: string, preferredIgUserId?: string) {
-  const preferred = preferredIgUserId?.trim() || "";
+  const clean = normalizeIgAccessToken(token);
+  if (!clean) {
+    throw new IgPublishError(igTokenReconnectMessage("token bo‘sh"));
+  }
+  if (looksLikeAppToken(clean)) {
+    throw new IgPublishError(
+      igTokenReconnectMessage("bu App Token — Instagram Login OAuth kerak")
+    );
+  }
+  if (!looksLikeIgAccessToken(clean)) {
+    throw new IgPublishError(igTokenReconnectMessage("token format noto‘g‘ri"));
+  }
 
-  // 1) Saqlangan IG ID + Facebook Graph (Page Access Token)
-  if (preferred) {
+  const preferred = preferredIgUserId?.trim() || "";
+  const kind = igTokenKind(clean);
+  const igBases = kind === "facebook" ? [] : [GRAPH_IG, GRAPH_IG_BARE];
+  const tryFb = kind !== "instagram";
+
+  // Instagram Login tokenni Facebook Graph ga yubormaslik — «Cannot parse access token»
+  if (igBases.length) {
+    if (preferred) {
+      for (const base of igBases) {
+        const ig = await graphGet(
+          base,
+          `/${preferred}?fields=id,username,name,account_type,user_id`,
+          clean
+        );
+        if (ig.res.ok && !ig.data.error && (ig.data.id || ig.data.user_id)) {
+          return {
+            igUserId: ig.data.user_id || ig.data.id!,
+            graphBase: base,
+            username: ig.data.username || null,
+            name: ig.data.name || null,
+            accountType: ig.data.account_type || null,
+          };
+        }
+      }
+    }
+    const me = await tryIgMe(clean, igBases);
+    if (me) return me;
+
+    const refreshed = await refreshInstagramLoginToken(clean);
+    if (refreshed && refreshed !== clean) {
+      const me2 = await tryIgMe(refreshed, igBases);
+      if (me2) return { ...me2, pageTokenOverride: refreshed };
+    }
+  }
+
+  if (tryFb && preferred) {
     const fb = await graphGet(
       GRAPH_FB,
       `/${preferred}?fields=id,username,name,account_type`,
-      token
+      clean
     );
     if (fb.res.ok && !fb.data.error && fb.data.id) {
       return {
@@ -57,115 +145,96 @@ export async function resolveIgAccess(token: string, preferredIgUserId?: string)
         accountType: fb.data.account_type || null,
       };
     }
+  }
 
-    // 2) Saqlangan IG ID + Instagram Graph (Instagram Login token)
-    const ig = await graphGet(
-      GRAPH_IG,
-      `/${preferred}?fields=id,username,name,account_type`,
-      token
+  if (tryFb) {
+    const pageMe = await graphGet(GRAPH_FB, `/me?fields=instagram_business_account`, clean);
+    if (pageMe.res.ok && !pageMe.data.error) {
+      const id = pageMe.data.instagram_business_account?.id;
+      if (id) {
+        const profile = await graphGet(
+          GRAPH_FB,
+          `/${id}?fields=id,username,name,account_type`,
+          clean
+        );
+        return {
+          igUserId: id,
+          graphBase: GRAPH_FB,
+          username: profile.data.username || null,
+          name: profile.data.name || null,
+          accountType: profile.data.account_type || null,
+        };
+      }
+    }
+
+    const accounts = await graphGet(
+      GRAPH_FB,
+      `/me/accounts?fields=id,name,access_token,instagram_business_account`,
+      clean
     );
-    if (ig.res.ok && !ig.data.error && ig.data.id) {
-      return {
-        igUserId: ig.data.id,
-        graphBase: GRAPH_IG,
-        username: ig.data.username || null,
-        name: ig.data.name || null,
-        accountType: ig.data.account_type || null,
-      };
+    if (accounts.res.ok && !(accounts.data as { error?: unknown }).error) {
+      const list =
+        (
+          accounts.data as {
+            data?: Array<{
+              id?: string;
+              name?: string;
+              access_token?: string;
+              instagram_business_account?: { id?: string };
+            }>;
+          }
+        ).data || [];
+      const withIg = list.find((p) => p.instagram_business_account?.id);
+      if (withIg?.instagram_business_account?.id && withIg.access_token) {
+        const igId = withIg.instagram_business_account.id;
+        const profile = await graphGet(
+          GRAPH_FB,
+          `/${igId}?fields=id,username,name,account_type`,
+          withIg.access_token
+        );
+        return {
+          igUserId: igId,
+          graphBase: GRAPH_FB,
+          pageTokenOverride: withIg.access_token,
+          username: profile.data.username || null,
+          name: profile.data.name || null,
+          accountType: profile.data.account_type || null,
+        };
+      }
     }
   }
 
-  // 3) Instagram Login: /me
-  const igMe = await graphGet(GRAPH_IG, `/me?fields=user_id,username,name,account_type`, token);
-  if (igMe.res.ok && !igMe.data.error) {
-    const id = igMe.data.user_id || igMe.data.id;
-    if (id) {
-      return {
-        igUserId: id,
-        graphBase: GRAPH_IG,
-        username: igMe.data.username || null,
-        name: igMe.data.name || null,
-        accountType: igMe.data.account_type || null,
-      };
-    }
-  }
-
-  // 4) Page token: /me?fields=instagram_business_account
-  const pageMe = await graphGet(GRAPH_FB, `/me?fields=instagram_business_account`, token);
-  if (pageMe.res.ok && !pageMe.data.error) {
-    const id = pageMe.data.instagram_business_account?.id;
-    if (id) {
-      const profile = await graphGet(
-        GRAPH_FB,
-        `/${id}?fields=id,username,name,account_type`,
-        token
-      );
-      return {
-        igUserId: id,
-        graphBase: GRAPH_FB,
-        username: profile.data.username || null,
-        name: profile.data.name || null,
-        accountType: profile.data.account_type || null,
-      };
-    }
-  }
-
-  // 5) User token: /me/accounts orqali Page + IG topish
-  const accounts = await graphGet(
-    GRAPH_FB,
-    `/me/accounts?fields=id,name,access_token,instagram_business_account`,
-    token
-  );
-  if (accounts.res.ok && !(accounts.data as { error?: unknown }).error) {
-    const list = (accounts.data as { data?: Array<{
-      id?: string;
-      name?: string;
-      access_token?: string;
-      instagram_business_account?: { id?: string };
-    }> }).data || [];
-    const withIg = list.find((p) => p.instagram_business_account?.id);
-    if (withIg?.instagram_business_account?.id && withIg.access_token) {
-      const igId = withIg.instagram_business_account.id;
-      const profile = await graphGet(
-        GRAPH_FB,
-        `/${igId}?fields=id,username,name,account_type`,
-        withIg.access_token
-      );
-      return {
-        igUserId: igId,
-        graphBase: GRAPH_FB,
-        pageTokenOverride: withIg.access_token,
-        username: profile.data.username || null,
-        name: profile.data.name || null,
-        accountType: profile.data.account_type || null,
-      };
-    }
-  }
-
-  const hint =
-    pageMe.data.error?.message ||
-    igMe.data.error?.message ||
-    "Token Page Access Token emas yoki Instagram Professional ulanmagan";
-  throw new IgPublishError(hint);
+  throw new IgPublishError(igTokenReconnectMessage());
 }
 
 export async function getIgCredentials(): Promise<IgCredentials> {
-  const pageToken =
+  const raw =
     (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
-  if (!pageToken.trim()) {
-    throw new IgPublishError("Page Access Token yo‘q — Meta / DM bo‘limiga token qo‘ying");
+  const pageToken = normalizeIgAccessToken(raw);
+  if (!pageToken) {
+    throw new IgPublishError(igTokenReconnectMessage("token yo‘q"));
   }
 
   const preferredIg =
     (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
 
-  const resolved = await resolveIgAccess(pageToken.trim(), preferredIg);
-  const token = resolved.pageTokenOverride || pageToken.trim();
+  const resolved = await resolveIgAccess(pageToken, preferredIg);
+  const token = resolved.pageTokenOverride || pageToken;
 
-  const publicBase = ((await getSetting("app_domain")) || (await getAppUrl()) || "").replace(/\/$/, "");
+  if (resolved.pageTokenOverride && resolved.pageTokenOverride !== pageToken) {
+    try {
+      await setSettings({ instagram_page_token: resolved.pageTokenOverride });
+    } catch {
+      /* saqlash ixtiyoriy */
+    }
+  }
+
+  const publicBase = publicShopOrigin(
+    (await getSetting("app_domain")) || (await getAppUrl()) || ""
+  );
   if (!publicBase || /localhost|127\.0\.0\.1/i.test(publicBase)) {
     throw new IgPublishError(
-      "Meta video/rasmni localhost dan o‘qimaydi. Meta/DM da «Sayt domeni»ni https://… (yoki ngrok) qilib saqlang."
+      "Meta video/rasmni localhost dan o‘qimaydi. Meta/DM da «Sayt domeni»ni https://www.luxfabricshop.uz qilib saqlang."
     );
   }
 
@@ -184,15 +253,26 @@ export async function resolveIgUserId(pageToken: string): Promise<string> {
 }
 
 export async function testInstagramConnection() {
-  const pageToken =
-    (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || "";
-  if (!pageToken.trim()) {
-    return { ok: false as const, error: "Page Access Token bo‘sh" };
+  const pageToken = normalizeIgAccessToken(
+    (await getSetting("instagram_page_token")) || process.env.INSTAGRAM_PAGE_TOKEN || ""
+  );
+  if (!pageToken) {
+    return { ok: false as const, error: igTokenReconnectMessage("token bo‘sh") };
+  }
+  if (!looksLikeIgAccessToken(pageToken)) {
+    return { ok: false as const, error: igTokenReconnectMessage("token format noto‘g‘ri") };
   }
   try {
     const preferredIg =
       (await getSetting("instagram_ig_user_id")) || process.env.INSTAGRAM_IG_USER_ID || "";
-    const resolved = await resolveIgAccess(pageToken.trim(), preferredIg);
+    const resolved = await resolveIgAccess(pageToken, preferredIg);
+    if (resolved.pageTokenOverride) {
+      try {
+        await setSettings({ instagram_page_token: resolved.pageTokenOverride });
+      } catch {
+        /* ignore */
+      }
+    }
     return {
       ok: true as const,
       igUserId: resolved.igUserId,
@@ -202,7 +282,11 @@ export async function testInstagramConnection() {
       graphBase: resolved.graphBase,
     };
   } catch (e) {
-    return { ok: false as const, error: e instanceof Error ? e.message : "Ulanish xatosi" };
+    const msg = e instanceof Error ? e.message : "Ulanish xatosi";
+    return {
+      ok: false as const,
+      error: isUnparseableTokenError(msg) ? igTokenReconnectMessage(msg) : msg,
+    };
   }
 }
 
@@ -226,7 +310,8 @@ async function graphPost(base: string, path: string, token: string, body: Record
   });
   const data = (await res.json()) as { id?: string; error?: { message?: string; code?: number } };
   if (!res.ok || data.error || !data.id) {
-    throw new IgPublishError(data.error?.message || `Graph POST ${path} xatosi`);
+    const raw = data.error?.message || `Graph POST ${path} xatosi`;
+    throw new IgPublishError(isUnparseableTokenError(raw) ? igTokenReconnectMessage(raw) : raw);
   }
   return data.id;
 }

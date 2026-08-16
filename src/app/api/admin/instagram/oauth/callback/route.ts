@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSetting, setSettings } from "@/lib/settings";
+import { normalizeIgAccessToken } from "@/lib/ig-token";
+import { resolveIgAccess } from "@/lib/instagram-graph";
 
 const IG_APP_ID = process.env.INSTAGRAM_APP_ID || "1081297184404685";
 const DEFAULT_REDIRECT = "https://www.luxfabricshop.uz/api/admin/instagram/oauth/callback";
@@ -56,7 +58,7 @@ export async function GET(req: Request) {
       return redirectAdmin(tokenData.error_message || "token exchange fail", false);
     }
 
-    let accessToken = tokenData.access_token;
+    let accessToken = normalizeIgAccessToken(tokenData.access_token);
     // long-lived
     const ll = new URL("https://graph.instagram.com/access_token");
     ll.searchParams.set("grant_type", "ig_exchange_token");
@@ -64,17 +66,36 @@ export async function GET(req: Request) {
     ll.searchParams.set("access_token", accessToken);
     const llRes = await fetch(ll);
     const llData = (await llRes.json()) as { access_token?: string };
-    if (llRes.ok && llData.access_token) accessToken = llData.access_token;
+    if (llRes.ok && llData.access_token) {
+      accessToken = normalizeIgAccessToken(llData.access_token);
+    }
 
-    const igUserId = String(tokenData.user_id || "");
+    if (!accessToken || accessToken.length < 20) {
+      return redirectAdmin("token format noto‘g‘ri — qayta urinib ko‘ring", false);
+    }
+
+    let igUserId = String(tokenData.user_id || "");
+
+    // Avval saqlash — resolve fail bo‘lsa ham yangi token yo‘qolmasin
     await setSettings({
       instagram_page_token: accessToken,
       ...(igUserId ? { instagram_ig_user_id: igUserId } : {}),
       instagram_username: "luxfabric.shop",
       app_domain: "https://www.luxfabricshop.uz",
-      // Reels publish uchun majburiy — OAuth muvaffaqiyatida avtomatik yoqiladi
       instagram_enabled: "true",
     });
+
+    try {
+      const resolved = await resolveIgAccess(accessToken, igUserId);
+      igUserId = resolved.igUserId || igUserId;
+      if (resolved.pageTokenOverride) accessToken = resolved.pageTokenOverride;
+      await setSettings({
+        instagram_page_token: accessToken,
+        ...(igUserId ? { instagram_ig_user_id: igUserId } : {}),
+      });
+    } catch {
+      /* token allaqachon saqlangan — publish o‘zi tekshiradi */
+    }
 
     return redirectAdmin("ok", true);
   } catch (e) {

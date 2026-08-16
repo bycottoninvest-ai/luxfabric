@@ -143,7 +143,7 @@ export async function POST(req: Request) {
       }
 
       const commentHint = firstComment?.ok
-        ? " Caption + birinchi izohda Sotib olish linki chiqadi."
+        ? " Reeldan keyin birinchi: Sotib olish havolasi (caption 1-qator + 1-izoh)."
         : firstComment
           ? ` Izoh yozilmadi: ${firstComment.error}`
           : buyUrl
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
         productTag,
         message: `Reel Instagramga joylandi ✓${commentHint}`,
         successHint:
-          "Caption + birinchi izohda Sotib olish linki chiqadi. Mijoz: link → o‘lcham → Sotib olish.",
+          "Reeldan keyin birinchi chiqadi: 🛒 Sotib olish + /i/slug. Caption boshida savatcha yo‘q. Mijoz: link → o‘lcham → Sotib olish.",
         note:
           "IG appda qizil overlay yo‘q (Meta). Qizil tugma — sayt /instagram. Qo‘lda telefon joylash — avto izoh ishlamaydi.",
       });

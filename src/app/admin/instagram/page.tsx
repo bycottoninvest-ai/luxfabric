@@ -49,7 +49,7 @@ export default async function AdminInstagramPage() {
   ]);
 
   const initial = {
-    app_domain: settings.app_domain || "https://luxfabricshop.uz",
+    app_domain: settings.app_domain || "https://www.luxfabricshop.uz",
     instagram_username: settings.instagram_username || "luxfabric.shop",
     instagram_enabled: settings.instagram_enabled || "false",
     instagram_ai_comments: settings.instagram_ai_comments || "true",
