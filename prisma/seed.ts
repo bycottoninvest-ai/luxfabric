@@ -140,7 +140,7 @@ async function main() {
       price: 129000,
       oldPrice: 161000,
       rating: 4.9,
-      soldCount: 2840,
+      soldCount: 0,
       featured: true,
       categoryId: cats[0].id,
       colors: [
@@ -159,7 +159,7 @@ async function main() {
       price: 149000,
       oldPrice: 189000,
       rating: 4.8,
-      soldCount: 1920,
+      soldCount: 0,
       featured: true,
       categoryId: cats[0].id,
       colors: [
@@ -177,7 +177,7 @@ async function main() {
       price: 189000,
       oldPrice: null,
       rating: 4.7,
-      soldCount: 860,
+      soldCount: 0,
       featured: true,
       categoryId: cats[1].id,
       colors: [
@@ -195,7 +195,7 @@ async function main() {
       price: 289000,
       oldPrice: 349000,
       rating: 4.9,
-      soldCount: 640,
+      soldCount: 0,
       featured: true,
       categoryId: cats[2].id,
       colors: [
@@ -213,7 +213,7 @@ async function main() {
       price: 99000,
       oldPrice: 129000,
       rating: 4.6,
-      soldCount: 1120,
+      soldCount: 0,
       featured: false,
       categoryId: cats[3].id,
       colors: [
@@ -231,7 +231,7 @@ async function main() {
       price: 119000,
       oldPrice: null,
       rating: 4.8,
-      soldCount: 1540,
+      soldCount: 0,
       featured: true,
       categoryId: cats[0].id,
       colors: [
