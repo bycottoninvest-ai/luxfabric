@@ -138,7 +138,7 @@ export default async function InstagramInstantBuyPage({ params, searchParams }: 
             <h2 className="text-base font-bold text-lf-text">Tez savollar</h2>
             <ul className="mt-2 space-y-1.5">
               <li>
-                <span className="font-semibold text-lf-text">Narx:</span> sahifadagi narx — Click yoki naqd.
+                <span className="font-semibold text-lf-text">Narx:</span> sahifadagi narx — Click, Payme, Paynet yoki naqd.
               </li>
               <li>
                 <span className="font-semibold text-lf-text">O‘lcham:</span>{" "}
