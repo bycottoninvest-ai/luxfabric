@@ -48,6 +48,7 @@ const SOURCE_LABEL: Record<string, string> = {
 const PAY_LABEL: Record<string, string> = {
   CLICK: "Click",
   PAYME: "Payme",
+  PAYNET: "Paynet",
   CARD: "Karta",
   COD: "Naqd (yetkazishda)",
 };

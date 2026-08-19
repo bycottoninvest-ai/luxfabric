@@ -7,6 +7,7 @@ import { pickWarehouseForCity } from "@/lib/warehouse";
 import { notifyOrderCreated, notifyDirector } from "@/lib/notify";
 import { buildClickPayUrlForOrder, getClickConfig, isClickConfigured } from "@/lib/click";
 import { buildPaymeCheckoutUrlForOrder } from "@/lib/payme";
+import { buildPaynetPayUrlForOrder } from "@/lib/paynet";
 import {
   formatBranchLabel,
   getUzCourierByCode,
@@ -32,7 +33,7 @@ const schema = z.object({
   city: z.string().min(2),
   address: z.string().min(3),
   regionCode: z.string().optional().nullable(),
-  paymentMethod: z.enum(["CLICK", "PAYME", "CARD", "COD"]),
+  paymentMethod: z.enum(["CLICK", "PAYME", "PAYNET", "CARD", "COD"]),
   source: z.enum(["STORE", "INSTAGRAM", "TELEGRAM", "ADMIN"]).optional(),
   deliveryType: z.enum(["SHOP_DELIVERY", "COURIER_CHOICE", "PICKUP"]).default("SHOP_DELIVERY"),
   /** HOME | PVZ | WAREHOUSE */
@@ -345,6 +346,12 @@ export async function POST(req: Request) {
       } catch (e) {
         console.error("[PAYME] pay url", e);
       }
+    } else if (effectiveMethod === "PAYNET") {
+      try {
+        paymentUrl = await buildPaynetPayUrlForOrder(order.orderNumber, total);
+      } catch (e) {
+        console.error("[PAYNET] pay url", e);
+      }
     }
 
     const paymentWarning =
@@ -352,9 +359,11 @@ export async function POST(req: Request) {
         ? "Karta to‘lovi hozircha Click orqali. Admin → Sozlamalarda Click ulang."
         : body.paymentMethod === "CARD" && effectiveMethod === "CLICK"
           ? "Karta → Click to‘lov sahifasiga yo‘naltirildi."
-          : (effectiveMethod === "CLICK" || effectiveMethod === "PAYME") && !paymentUrl
-            ? `${effectiveMethod} sozlanmagan. Admin → Sozlamalar yoki Vercel Env (docs/TOLASH-ULASH.md).`
-            : null;
+          : effectiveMethod === "PAYNET" && !paymentUrl
+            ? "Paynet: terminal yoki ilovada buyurtma raqamini (LF-…) kiriting. Admin → Sozlamalarda username/parol."
+            : (effectiveMethod === "CLICK" || effectiveMethod === "PAYME") && !paymentUrl
+              ? `${effectiveMethod} sozlanmagan. Admin → Sozlamalar yoki Vercel Env (docs/TOLASH-ULASH.md).`
+              : null;
 
     const res = NextResponse.json({
       orderNumber: order.orderNumber,

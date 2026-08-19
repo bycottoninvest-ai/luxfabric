@@ -79,7 +79,7 @@ export function SettingsForm({
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-lf-card p-4 space-y-3">
-        <h2 className="font-semibold">To‘lov — Click + Payme</h2>
+        <h2 className="font-semibold">To‘lov — Click + Payme + Paynet</h2>
         {field("click_merchant_id", "Click Merchant ID", "mc.click.uz kabinetdan")}
         {field("click_service_id", "Click Service ID")}
         {field(
@@ -94,6 +94,19 @@ export function SettingsForm({
           "Payme Key (secret)",
           "Yoki Vercel: PAYME_KEY — Basic Auth Paycom:KEY",
           "password"
+        )}
+        {field("paynet_username", "Paynet Username", "Anketaga yozilgan login (masalan luxfabric)")}
+        {field(
+          "paynet_password",
+          "Paynet Password",
+          "Yoki Vercel: PAYNET_PASSWORD — Paynetga berilgan parol",
+          "password"
+        )}
+        {field("paynet_service_id", "Paynet service_id", "Paynet bergan ID; ixtiyoriy 1")}
+        {field(
+          "paynet_merchant_id",
+          "Paynet Merchant ID",
+          "Ixtiyoriy — app.paynet.uz deep-link uchun"
         )}
         <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-lf-muted space-y-1">
           <p className="text-white/80 font-medium">Click callback (kabinetga qo‘ying):</p>
@@ -116,6 +129,17 @@ export function SettingsForm({
             <span className="text-white">
               {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}/api/payme
             </span>
+          </p>
+          <p className="pt-2 text-white/80 font-medium">Paynet API (anketa):</p>
+          <p>
+            Endpoint:{" "}
+            <span className="text-white">
+              {(form.app_domain || "https://www.luxfabricshop.uz").replace(/\/$/, "")}/api/paynet
+            </span>
+          </p>
+          <p>
+            Field Name: <span className="text-white">order_id</span> · Field Value:{" "}
+            <span className="text-white">Buyurtma raqami (LF-xxxxxx)</span>
           </p>
           <p className="pt-1">
             Batafsil: docs/TOLASH-ULASH.md · Ishga: docs/ISHGA-TUSHIRISH-REJA.md

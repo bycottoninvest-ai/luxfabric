@@ -58,7 +58,7 @@ export function OrderSuccessClient({
         if (cancelled || !order) return;
         if (typeof order.paymentMethod === "string") setPaymentMethod(order.paymentMethod);
         if (typeof order.paymentStatus === "string") setPaymentStatus(order.paymentStatus);
-        if (order.paymentStatus === "PENDING" && (order.paymentMethod === "CLICK" || order.paymentMethod === "PAYME" || order.paymentMethod === "CARD")) {
+        if (order.paymentStatus === "PENDING" && (order.paymentMethod === "CLICK" || order.paymentMethod === "PAYME" || order.paymentMethod === "PAYNET" || order.paymentMethod === "CARD")) {
           timer = setTimeout(() => void pollPayment(), 4000);
         }
       } catch {
@@ -127,7 +127,7 @@ export function OrderSuccessClient({
   }
 
   const onlinePay =
-    paymentMethod === "CLICK" || paymentMethod === "PAYME" || paymentMethod === "CARD";
+    paymentMethod === "CLICK" || paymentMethod === "PAYME" || paymentMethod === "PAYNET" || paymentMethod === "CARD";
   const pendingOnline = onlinePay && paymentStatus !== "PAID";
   const paid = paymentStatus === "PAID";
   const cod = paymentMethod === "COD";
@@ -161,8 +161,9 @@ export function OrderSuccessClient({
       ) : null}
       {pendingOnline ? (
         <p className="mt-3 text-sm text-amber-800 leading-relaxed">
-          {paymentMethod === "PAYME" ? "Payme" : "Click"} orqali to‘lovni yakunlang. Tasdiq
-          webhook kelgach avtomatik PAID bo‘ladi (sahifa yangilanadi).
+          {paymentMethod === "PAYNET"
+            ? "Paynet ilova yoki terminalda shu buyurtma raqamini kiriting. Tasdiq webhook kelgach avtomatik PAID bo‘ladi (sahifa yangilanadi)."
+            : `${paymentMethod === "PAYME" ? "Payme" : "Click"} orqali to‘lovni yakunlang. Tasdiq webhook kelgach avtomatik PAID bo‘ladi (sahifa yangilanadi).`}
           {paymentSetupHint
             ? " Agar to‘lov oynasi ochilmagan bo‘lsa — Admin → Sozlamalarda kalitlar yo‘q."
             : ""}

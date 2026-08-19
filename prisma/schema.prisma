@@ -185,6 +185,10 @@ model Order {
   paymePerformTime  BigInt?
   paymeCancelTime   BigInt?
   paymeReason       Int?
+  /// Paynet Provider API (JSON-RPC / SOAP)
+  paynetTransactionId  String?   @unique
+  paynetProviderTrnId  Int?
+  paynetState          Int?
   customerId        String?
   customer          Customer?       @relation(fields: [customerId], references: [id])
   warehouseId       String?

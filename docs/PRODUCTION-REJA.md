@@ -69,4 +69,5 @@ Admin → Instagram → Meta/DM:
 - [ ] Payme + Neon migrate (Payme ustunlari)
 - [ ] BTS / Fargo shartnoma (manual trek avval) → `docs/ISHGA-TUSHIRISH-REJA.md`
 
-Batafsil holat: `docs/HOLAT-SAQLANGAN.md` · Ishga reja: `docs/ISHGA-TUSHIRISH-REJA.md`
+Batafsil holat: `docs/HOLAT-SAQLANGAN.md` · Ishga reja: `docs/ISHGA-TUSHIRISH-REJA.md`  
+**Yangi sistema (2026-08-18):** `docs/YANGI-SISTEMA-REJA.md`

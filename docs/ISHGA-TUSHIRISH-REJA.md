@@ -46,10 +46,11 @@ Batafsil kalitlar va SQL: [`docs/TOLASH-ULASH.md`](./TOLASH-ULASH.md).
 |-----------|----------------|------------------|-----------------|-------|
 | **Click** (asosiy) | [business.click.uz](https://business.click.uz) · merchant: [mc.click.uz](https://mc.click.uz) · docs: [docs.click.uz](https://docs.click.uz) | `CLICK_MERCHANT_ID`, `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY` | Prepare: `https://www.luxfabricshop.uz/api/click/prepare` · Complete: `…/api/click/complete` | Kod tayyor — **kalitlar Salayevdan** |
 | **Payme** | [business.payme.uz](https://business.payme.uz) · [merchant.payme.uz](https://merchant.payme.uz) | `PAYME_MERCHANT_ID`, `PAYME_KEY` | `https://www.luxfabricshop.uz/api/payme` | Kod tayyor — **Neon Payme migrate** hali kerak bo‘lishi mumkin |
+| **Paynet** | Paynet anketa | `PAYNET_USERNAME`, `PAYNET_PASSWORD`, `PAYNET_SERVICE_ID` | `https://www.luxfabricshop.uz/api/paynet` | Kod tayyor — **kalitlar + migrate** |
 | **Uzum Bank** (ixtiyoriy, keyin) | [merchants.uzumbank.uz](https://merchants.uzumbank.uz) | Merchant API kalitlari (shartnomadan) | Hali kodda yo‘q | Click+Payme dan keyin |
 | **COD** | — | — | — | Ishlaydi (`PENDING`) |
 
-Tekshiruv: `https://www.luxfabricshop.uz/api/payments/status` → `click.configured` / `payme.configured`.
+Tekshiruv: `https://www.luxfabricshop.uz/api/payments/status` → `click.configured` / `payme.configured` / `paynet.configured`.
 
 ---
 

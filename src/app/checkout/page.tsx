@@ -23,6 +23,7 @@ import {
 const payments = [
   { id: "CLICK", label: "Click" },
   { id: "PAYME", label: "Payme" },
+  { id: "PAYNET", label: "Paynet" },
   { id: "CARD", label: "Karta (Click orqali)" },
   { id: "COD", label: "Kuryerga naqd" },
 ];

@@ -314,6 +314,10 @@ async function main() {
     click_service_id: "",
     click_secret_key: "",
     payme_merchant_id: "",
+    paynet_username: "",
+    paynet_password: "",
+    paynet_service_id: "",
+    paynet_merchant_id: "",
     support_phone: "+998900000000",
   };
   for (const [key, value] of Object.entries(defaults)) {

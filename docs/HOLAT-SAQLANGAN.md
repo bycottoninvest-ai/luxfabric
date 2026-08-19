@@ -1,7 +1,8 @@
-# LUXFABRIC — saqlangan holat (2026-08-13)
+# LUXFABRIC — saqlangan holat (2026-08-18)
 
 **Maqsad:** ertaga / limit tugaganda chatni qayta ochib, shu fayldan davom etish; yoki boshqa AIga berib tiklash.
 
+**YANGI SISTEMA REJA (2026-08-18):** `docs/YANGI-SISTEMA-REJA.md` — ishga tushirishning asosiy tartibi  
 **Vizual:** `docs/VIZUAL-TIZIM.md` + rasmlar  
 **Real (production) reja:** `docs/PRODUCTION-REJA.md` — test emas, to‘liq ishlashi kerak  
 **Yetkazish strategiyasi:** `docs/YETKAZISH-STRATEGIYA.md` — Toshkent hub + SLA + BTS/Fargo/Yandex  
@@ -221,6 +222,8 @@ LUXFABRIC Sales OS — Next.js (App Router) + Tailwind + Prisma (**PostgreSQL** 
 ---
 
 ## Hali qilinmagan / keyingi qadamlar
+
+**Asosiy tartib:** `docs/YANGI-SISTEMA-REJA.md` (2026-08-18)
 
 - [x] Neon `DATABASE_URL` → Vercel + redeploy
 - [x] Admin parol + Vercel Blob `luxfabric-media`

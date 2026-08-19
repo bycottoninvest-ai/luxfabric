@@ -1,6 +1,6 @@
-# LUXFABRIC — Click + Payme ulash
+# LUXFABRIC — Click + Payme + Paynet ulash
 
-Kod tayyor (2026-08-13). **Ulash boshlandi** — prod da status API jonli (`configured: false`); **kalitlar kutilyapti**. Merchant kabinetdan kalitlar sizniki — ularsiz to‘lov ochilmaydi. Fake PAID yo‘q.
+Kod tayyor. **Ulash** — prod da status API jonli (`configured: false` kalitlar bo‘lmasa); **kalitlar kutilyapti**. Merchant kabinetdan kalitlar sizniki — ularsiz to‘lov ochilmaydi. Fake PAID yo‘q.
 
 **Ishga tushirish (kuryer + to‘lov tartibi):** [`docs/ISHGA-TUSHIRISH-REJA.md`](./ISHGA-TUSHIRISH-REJA.md)
 
@@ -10,9 +10,9 @@ Kod tayyor (2026-08-13). **Ulash boshlandi** — prod da status API jonli (`conf
 https://www.luxfabricshop.uz/api/payments/status
 ```
 
-`click.configured` / `payme.configured` → `true` bo‘lishi kerak.
+`click.configured` / `payme.configured` / `paynet.configured` → `true` bo‘lishi kerak.
 
-Lokal `.env` da `CLICK_*` / `PAYME_*` **yo‘q** (tekshirildi) — Admin → Sozlamalar yoki Vercel Sensitive ga qo‘ying.
+Lokal `.env` da `CLICK_*` / `PAYME_*` / `PAYNET_*` **yo‘q** bo‘lsa — Admin → Sozlamalar yoki Vercel Sensitive ga qo‘ying.
 
 ---
 
@@ -56,6 +56,30 @@ Checkout → **Payme** → `checkout.paycom.uz` → PerformTransaction → `PAID
 
 ---
 
+## 2b) Paynet (terminal / ilova)
+
+Kod: `src/lib/paynet.ts` + `paynet-webhook.ts` · `POST /api/paynet`
+
+### Anketa (Paynetga)
+| Maydon | Qiymat |
+|--------|--------|
+| API Endpoint URL | `https://www.luxfabricshop.uz/api/paynet` |
+| Username | masalan `luxfabric` (o‘zingiz belgilaysiz) |
+| Password | yangi kuchli parol (chatga yozmang) |
+| service_id | Paynet bersa — o‘sha; yo‘qsa `1` |
+| Field Name | `order_id` |
+| Field Value | `Buyurtma raqami (LF-xxxxxx)` |
+
+### Admin / Vercel
+- `PAYNET_USERNAME` / `paynet_username`
+- `PAYNET_PASSWORD` / `paynet_password`
+- `PAYNET_SERVICE_ID` / `paynet_service_id` (ixtiyoriy)
+- `PAYNET_MERCHANT_ID` (ixtiyoriy, `app.paynet.uz` havola)
+
+Checkout → **Paynet** → terminal/ilovada `LF-…` kiritiladi → GetInformation + PerformTransaction → `PAID`.
+
+---
+
 ## 3) Boshqa usullar
 
 | Usul | Holat |
@@ -86,7 +110,14 @@ ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paymeReason" INTEGER;
 CREATE UNIQUE INDEX IF NOT EXISTS "Order_paymeId_key" ON "Order"("paymeId");
 ```
 
-Keyin `_prisma_migrations` ga yozuv qo‘shish yoki `npx prisma migrate resolve --applied 20260813100000_payme_fields` (faqat SQL qo‘lda ishlagandan keyin).
+```sql
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paynetTransactionId" TEXT;
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paynetProviderTrnId" INTEGER;
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paynetState" INTEGER;
+CREATE UNIQUE INDEX IF NOT EXISTS "Order_paynetTransactionId_key" ON "Order"("paynetTransactionId");
+```
+
+Paynet migration: `prisma/migrations/20260819100000_paynet_fields/`
 
 ---
 
@@ -98,9 +129,11 @@ Keyin `_prisma_migrations` ga yozuv qo‘shish yoki `npx prisma migrate resolve 
 | `src/app/api/click/*` | Prepare / Complete |
 | `src/lib/payme.ts` + `payme-webhook.ts` | Payme JSON-RPC |
 | `src/app/api/payme` | Merchant callback |
+| `src/lib/paynet.ts` + `paynet-webhook.ts` | Paynet JSON-RPC / SOAP |
+| `src/app/api/paynet` | Provider callback |
 | `src/app/api/payments/status` | Holat (sirlar yo‘q) |
-| `src/app/api/orders` | `paymentUrl` + `checkoutUrl`; COD/CLICK/PAYME → PENDING |
-| Admin Sozlamalar | `click_*` + `payme_*` |
+| `src/app/api/orders` | `paymentUrl` + `checkoutUrl`; COD/CLICK/PAYME/PAYNET → PENDING |
+| Admin Sozlamalar | `click_*` + `payme_*` + `paynet_*` |
 
 ---
 
@@ -108,6 +141,7 @@ Keyin `_prisma_migrations` ga yozuv qo‘shish yoki `npx prisma migrate resolve 
 
 1. **Click:** Merchant ID + Service ID + Secret → Admin → Sozlamalar (yoki Vercel Sensitive) + kabinetga callback URL.
 2. **Payme (ixtiyoriy):** Merchant ID + Key + Merchant API URL.
-3. Neon `DATABASE_URL` yangilash (agar migrate hali ishlamagan bo‘lsa) yoki yuqoridagi SQL.
-4. Chatga **secret yozmang**.
-5. Tekshiruv: `/api/payments/status` → configured true → test buyurtma.
+3. **Paynet:** Username + Password + (service_id) → Admin → Sozlamalar; anketa URL: `/api/paynet`.
+4. Neon `DATABASE_URL` yangilash (agar migrate hali ishlamagan bo‘lsa) yoki yuqoridagi SQL.
+5. Chatga **secret yozmang**.
+6. Tekshiruv: `/api/payments/status` → configured true → test buyurtma.

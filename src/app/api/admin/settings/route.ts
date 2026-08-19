@@ -14,6 +14,7 @@ const SECRET_KEYS = new Set([
   "instagram_app_secret",
   "click_secret_key",
   "payme_key",
+  "paynet_password",
 ]);
 
 export async function POST(req: Request) {
